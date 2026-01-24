@@ -9,7 +9,6 @@ ApplicationWindow {
     property real baseWindowHeight: fontMetrics.height * 16
     property real windowMargin: fontMetrics.height * 1.2
 
-    // Clean up user string - remove "unix-user:" prefix if present
     property string cleanUser: {
         var user = hpa.getUser();
         if (user.startsWith("unix-user:")) {
@@ -18,8 +17,6 @@ ApplicationWindow {
         return user;
     }
 
-    // Parse the message to extract command if present
-    // Polkit commonly uses backticks or single quotes around commands.
     property string rawMessage: hpa.getMessage()
     property string commandText: {
         var candidate = "";
@@ -118,7 +115,6 @@ ApplicationWindow {
             anchors.margins: windowMargin
             spacing: 0
 
-            // Header - centered
             Label {
                 text: "Authentication Required"
                 color: activePalette.windowText
@@ -127,7 +123,6 @@ ApplicationWindow {
                 Layout.alignment: Qt.AlignHCenter
             }
 
-            // User info - centered, slightly muted
             Label {
                 text: "for " + cleanUser
                 color: disabledPalette.windowText
@@ -136,15 +131,12 @@ ApplicationWindow {
                 Layout.topMargin: fontMetrics.height * 0.2
             }
 
-            // Spacing after header
             Item { Layout.preferredHeight: fontMetrics.height * 1.0 }
 
             HSeparator {}
 
-            // Spacing after separator
             Item { Layout.preferredHeight: fontMetrics.height * 0.8 }
 
-            // Message text (without command)
             Label {
                 text: messageText
                 color: activePalette.windowText
@@ -155,7 +147,6 @@ ApplicationWindow {
                 wrapMode: Text.WordWrap
             }
 
-            // Command box - only shown if there's a command
             Item {
                 Layout.preferredHeight: fontMetrics.height * 0.5
                 visible: commandText !== ""
@@ -171,7 +162,6 @@ ApplicationWindow {
                 Layout.preferredHeight: commandLabel.implicitHeight + fontMetrics.height * 1.0
                 Layout.minimumHeight: fontMetrics.height * 2
 
-                // More visible background using base color (input field background)
                 color: activePalette.base
                 border.color: Qt.rgba(activePalette.windowText.r, activePalette.windowText.g, activePalette.windowText.b, 0.25)
                 border.width: 1
@@ -192,15 +182,12 @@ ApplicationWindow {
                 }
             }
 
-            // Spacing before password
             Item { Layout.preferredHeight: fontMetrics.height * 1.0 }
 
             HSeparator {}
 
-            // Spacing after separator
             Item { Layout.preferredHeight: fontMetrics.height * 0.8 }
 
-            // Password field - uses system styling
             TextField {
                 id: passwordField
 
@@ -229,7 +216,6 @@ ApplicationWindow {
                 }
             }
 
-            // Error label
             Label {
                 id: errorLabel
                 color: activePalette.link
@@ -248,7 +234,6 @@ ApplicationWindow {
                 }
             }
 
-            // Flexible spacer - minimal, just for visual balance
             Item {
                 Layout.preferredHeight: fontMetrics.height * 0.5
                 Layout.fillHeight: true
@@ -257,10 +242,8 @@ ApplicationWindow {
 
             HSeparator {}
 
-            // Spacing before buttons
             Item { Layout.preferredHeight: fontMetrics.height * 0.8 }
 
-            // Action buttons - centered
             RowLayout {
                 Layout.alignment: Qt.AlignHCenter
                 spacing: fontMetrics.height * 1.0
@@ -283,7 +266,6 @@ ApplicationWindow {
         }
     }
 
-    // Separator using system palette
     component Separator: Rectangle {
         color: Qt.rgba(activePalette.windowText.r, activePalette.windowText.g, activePalette.windowText.b, 0.12)
     }
