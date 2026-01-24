@@ -24,6 +24,7 @@ class CQMLIntegration : public QObject {
     QString             result = "fail", errorText = "";
 
     Q_INVOKABLE QString getMessage();
+    Q_INVOKABLE QString getCommand();
     Q_INVOKABLE QString getUser();
 
     Q_INVOKABLE void    setResult(QString str);

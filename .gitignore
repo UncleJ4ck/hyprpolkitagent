@@ -36,3 +36,24 @@
 build/
 
 compile_commands.json
+
+# CMake / Qt generated (in-source build artifacts)
+.qt/
+.rcc/
+hpa/
+hyprpolkitagent_autogen/
+meta_types/
+qmltypes/
+
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Built binaries / generated sources
+hyprpolkitagent
+hyprpolkitagent_qmltyperegistrations.cpp
+
+# Generated unit/service files (from build/install)
+hyprpolkitagent.service
+hyprpolkitagent-dbus.service

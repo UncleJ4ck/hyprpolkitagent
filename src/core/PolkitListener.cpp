@@ -39,6 +39,7 @@ void CPolkitListener::initiateAuthentication(const QString& actionId, const QStr
     session.actionId     = actionId;
     session.message      = message;
     session.iconName     = iconName;
+    session.details      = details;
     session.gainedAuth   = false;
     session.cancelled    = false;
     session.inProgress   = true;

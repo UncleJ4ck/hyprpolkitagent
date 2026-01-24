@@ -34,6 +34,7 @@ class CPolkitListener : public PolkitQt1::Agent::Listener {
     struct {
         bool                           inProgress = false, cancelled = false, gainedAuth = false;
         QString                        cookie, message, iconName, actionId;
+        PolkitQt1::Details             details;
         PolkitQt1::Agent::AsyncResult* result = nullptr;
         PolkitQt1::Identity            selectedUser;
         PolkitQt1::Agent::Session*     session = nullptr;
