@@ -1,5 +1,7 @@
 #pragma once
 
+#include <deque>
+
 #include <QObject>
 #include <QString>
 
@@ -31,6 +33,16 @@ class CPolkitListener : public PolkitQt1::Agent::Listener {
     void showInfo(const QString& text);
 
   private:
+    struct PendingAuth {
+        QString                          actionId;
+        QString                          message;
+        QString                          iconName;
+        QString                          cookie;
+        PolkitQt1::Details               details;
+        PolkitQt1::Identity::List        identities;
+        PolkitQt1::Agent::AsyncResult*   result = nullptr;
+    };
+
     struct {
         bool                           inProgress = false, cancelled = false, gainedAuth = false;
         QString                        cookie, message, iconName, actionId;
@@ -40,8 +52,12 @@ class CPolkitListener : public PolkitQt1::Agent::Listener {
         PolkitQt1::Agent::Session*     session = nullptr;
     } session;
 
+    std::deque<PendingAuth> m_queue;
+
     void reattempt();
     void finishAuth();
+    void startAuth(const PendingAuth& req);
+    void startNextQueued();
 
     friend class CAgent;
     friend class CQMLIntegration;
