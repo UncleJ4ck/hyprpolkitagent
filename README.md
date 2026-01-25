@@ -18,7 +18,7 @@ A simple polkit authentication agent for Hyprland, written in QT/QML.
 - [ ] Optional user selector when multiple admin identities are available (extra)
 
 ### Robustness
-- [ ] Queue concurrent requests instead of rejecting them
+- [x] Queue concurrent requests instead of rejecting them
 - [ ] Consistent cleanup on cancel/timeout
 - [ ] Avoid showing prompts while the session is locked (if applicable)
 

@@ -14,32 +14,23 @@ CPolkitListener::CPolkitListener(QObject* parent) : Listener(parent) {
     ;
 }
 
-void CPolkitListener::initiateAuthentication(const QString& actionId, const QString& message, const QString& iconName, const PolkitQt1::Details& details, const QString& cookie,
-                                             const PolkitQt1::Identity::List& identities, AsyncResult* result) {
-
-    std::print("> New authentication session\n");
-
-    if (session.inProgress) {
-        result->setError("Authentication in progress");
-        result->setCompleted();
-        std::print("> REJECTING: Another session present\n");
-        return;
-    }
-
-    if (identities.isEmpty()) {
-        result->setError("No identities, this is a problem with your system configuration.");
-        result->setCompleted();
+void CPolkitListener::startAuth(const PendingAuth& req) {
+    if (req.identities.isEmpty()) {
+        if (req.result) {
+            req.result->setError("No identities, this is a problem with your system configuration.");
+            req.result->setCompleted();
+        }
         std::print("> REJECTING: No idents\n");
         return;
     }
 
-    session.selectedUser = identities.at(0);
-    session.cookie       = cookie;
-    session.result       = result;
-    session.actionId     = actionId;
-    session.message      = message;
-    session.iconName     = iconName;
-    session.details      = details;
+    session.selectedUser = req.identities.at(0);
+    session.cookie       = req.cookie;
+    session.result       = req.result;
+    session.actionId     = req.actionId;
+    session.message      = req.message;
+    session.iconName     = req.iconName;
+    session.details      = req.details;
     session.gainedAuth   = false;
     session.cancelled    = false;
     session.inProgress   = true;
@@ -47,6 +38,47 @@ void CPolkitListener::initiateAuthentication(const QString& actionId, const QStr
     g_pAgent->initAuthPrompt();
 
     reattempt();
+}
+
+void CPolkitListener::startNextQueued() {
+    if (session.inProgress || m_queue.empty())
+        return;
+
+    const PendingAuth next = m_queue.front();
+    m_queue.pop_front();
+    startAuth(next);
+}
+
+void CPolkitListener::initiateAuthentication(const QString& actionId, const QString& message, const QString& iconName, const PolkitQt1::Details& details, const QString& cookie,
+                                             const PolkitQt1::Identity::List& identities, AsyncResult* result) {
+
+    std::print("> New authentication session\n");
+
+    PendingAuth req;
+    req.actionId   = actionId;
+    req.message    = message;
+    req.iconName   = iconName;
+    req.details    = details;
+    req.cookie     = cookie;
+    req.identities = identities;
+    req.result     = result;
+
+    if (identities.isEmpty()) {
+        if (result) {
+            result->setError("No identities, this is a problem with your system configuration.");
+            result->setCompleted();
+        }
+        std::print("> REJECTING: No idents\n");
+        return;
+    }
+
+    if (session.inProgress) {
+        m_queue.push_back(req);
+        std::print("> QUEUED: Another session present. Queue size: {}\n", m_queue.size());
+        return;
+    }
+
+    startAuth(req);
 }
 
 void CPolkitListener::reattempt() {
@@ -126,6 +158,8 @@ void CPolkitListener::finishAuth() {
         session.result->setCompleted();
 
     g_pAgent->resetAuthState();
+
+    startNextQueued();
 }
 
 void CPolkitListener::submitPassword(const QString& pass) {
