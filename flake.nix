@@ -32,7 +32,7 @@
         system:
         import nixpkgs {
           localSystem = system;
-          overlays = [ self.overlays.default ];
+          overlays = [ self.overlays.hyprpolkitagent-with-deps ];
         }
       );
     in
