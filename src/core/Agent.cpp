@@ -3,10 +3,43 @@
 #include <polkitagent/polkitagent.h>
 #include <print>
 #include <QtCore/QString>
+#include <QIcon>
+#include <QPixmap>
+#include <QQuickImageProvider>
 using namespace Qt::Literals::StringLiterals;
 
 #include "Agent.hpp"
 #include "../QMLIntegration.hpp"
+
+namespace {
+class CThemeIconProvider : public QQuickImageProvider {
+  public:
+    CThemeIconProvider() : QQuickImageProvider(QQuickImageProvider::Pixmap) {
+        ;
+    }
+
+    QPixmap requestPixmap(const QString& id, QSize* size, const QSize& requestedSize) override {
+        const QSize sz = requestedSize.isValid() && !requestedSize.isEmpty() ? requestedSize : QSize(48, 48);
+        QIcon       icon;
+        for (const auto& name : id.split(',', Qt::SkipEmptyParts)) {
+            const QString trimmed = name.trimmed();
+            if (trimmed.isEmpty())
+                continue;
+            QIcon candidate = QIcon::fromTheme(trimmed);
+            if (!candidate.isNull()) {
+                icon = candidate;
+                break;
+            }
+        }
+        if (icon.isNull())
+            icon = QIcon::fromTheme("system-lock-screen");
+        QPixmap pm = icon.pixmap(sz);
+        if (size)
+            *size = pm.size();
+        return pm;
+    }
+};
+}
 
 CAgent::CAgent() {
     ;
@@ -65,6 +98,7 @@ void CAgent::initAuthPrompt() {
         QQuickStyle::setStyle("org.hyprland.style");
 
     authState.qmlEngine = new QQmlApplicationEngine();
+    authState.qmlEngine->addImageProvider("themeicon", new CThemeIconProvider());
     authState.qmlEngine->rootContext()->setContextProperty("hpa", authState.qmlIntegration);
     authState.qmlEngine->load(QUrl{u"qrc:/qt/qml/hpa/qml/main.qml"_s});
 

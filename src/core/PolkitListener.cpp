@@ -7,6 +7,7 @@
 #include <polkitqt1-agent-session.h>
 
 #include <print>
+#include <unistd.h>
 
 using namespace PolkitQt1::Agent;
 
@@ -24,7 +25,15 @@ void CPolkitListener::startAuth(const PendingAuth& req) {
         return;
     }
 
-    session.selectedUser = req.identities.at(0);
+    const QString preferred = QStringLiteral("unix-user:%1").arg(::geteuid());
+    PolkitQt1::Identity selected = req.identities.at(0);
+    for (const auto& id : req.identities) {
+        if (id.toString() == preferred) {
+            selected = id;
+            break;
+        }
+    }
+    session.selectedUser = selected;
     session.cookie       = req.cookie;
     session.result       = req.result;
     session.actionId     = req.actionId;
@@ -108,6 +117,8 @@ void CPolkitListener::cancelAuthentication() {
 
 void CPolkitListener::request(const QString& request, bool echo) {
     std::print("> PKS request: {} echo: {}\n", request.toStdString(), echo);
+    if (g_pAgent->authState.qmlIntegration)
+        g_pAgent->authState.qmlIntegration->setPrompt(request, echo);
 }
 
 void CPolkitListener::completed(bool gainedAuthorization) {
@@ -130,6 +141,8 @@ void CPolkitListener::showError(const QString& text) {
 
 void CPolkitListener::showInfo(const QString& text) {
     std::print("> PKS showInfo: {}\n", text.toStdString());
+    if (g_pAgent->authState.qmlIntegration)
+        g_pAgent->authState.qmlIntegration->setInfo(text);
 }
 
 void CPolkitListener::finishAuth() {
@@ -140,8 +153,10 @@ void CPolkitListener::finishAuth() {
 
     if (!session.gainedAuth && !session.cancelled) {
         std::print("> finishAuth: Did not gain auth. Reattempting.\n");
-        if (g_pAgent->authState.qmlIntegration)
+        if (g_pAgent->authState.qmlIntegration) {
+            g_pAgent->authState.qmlIntegration->clearField();
             g_pAgent->authState.qmlIntegration->blockInput(false);
+        }
         session.session->deleteLater();
         reattempt();
         return;
