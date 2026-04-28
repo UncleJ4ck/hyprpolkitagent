@@ -230,14 +230,15 @@ ApplicationWindow {
                 TextField {
                     id: passwordField
                     anchors.fill: parent
-                    placeholderText: promptText
+                    placeholderText: ""
                     horizontalAlignment: TextInput.AlignHCenter
                     hoverEnabled: true
                     persistentSelection: true
                     echoMode: promptEcho ? TextInput.Normal : TextInput.Password
                     focus: true
-                    rightPadding: revealButton.visible ? revealButton.width + s : 0
-                    leftPadding: revealButton.visible ? revealButton.width + s : 0
+                    readonly property real reservedSide: revealButton.visible ? revealButton.width + s : 0
+                    leftPadding: reservedSide
+                    rightPadding: reservedSide
 
                     onTextChanged: {
                         if (errorLabel.text !== "") errorLabel.text = "";
@@ -245,6 +246,15 @@ ApplicationWindow {
                     }
 
                     Keys.onPressed: (e) => { if (e.key === Qt.Key_CapsLock) capsOn = !capsOn; }
+
+                    Label {
+                        id: placeholderLabel
+                        anchors.centerIn: parent
+                        text: promptText
+                        color: Qt.rgba(activePalette.windowText.r, activePalette.windowText.g, activePalette.windowText.b, 0.5)
+                        font: passwordField.font
+                        visible: passwordField.text.length === 0
+                    }
                 }
 
                 Button {
