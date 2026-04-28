@@ -5,9 +5,12 @@ import QtQuick.Layouts
 ApplicationWindow {
     id: window
 
-    property real windowWidth: fontMetrics.height * 34
-    property real baseWindowHeight: fontMetrics.height * 16
-    property real windowMargin: fontMetrics.height * 1.2
+    readonly property real s: fontMetrics.height * 0.4
+    readonly property real s2: s * 2
+    readonly property real s3: s * 3
+    readonly property real s4: s * 4
+    readonly property real windowWidth: fontMetrics.height * 36
+    readonly property real windowMargin: s * 4
 
     property string cleanUser: {
         var user = hpa.getUser();
@@ -48,6 +51,12 @@ ApplicationWindow {
         return rawMessage;
     }
 
+    property string promptText: hpa.getInitialPrompt()
+    property bool promptEcho: hpa.getInitialPromptEcho()
+    property string infoText: ""
+    property bool capsOn: false
+    property bool detailsExpanded: false
+
     function isQuoteChar(ch) {
         return ch === "`" || ch === "'" || ch === "\"";
     }
@@ -67,13 +76,21 @@ ApplicationWindow {
         return cleaned;
     }
 
+    function normalizePromptLabel(s) {
+        var t = (s || "").trim();
+        while (t.length > 0 && t[t.length - 1] === ":") {
+            t = t.slice(0, -1).trim();
+        }
+        return t.length > 0 ? t : "Password";
+    }
+
     flags: Qt.Dialog | Qt.WindowStaysOnTopHint
 
     width: windowWidth
     height: minimumHeight
     minimumWidth: windowWidth
     maximumWidth: windowWidth
-    minimumHeight: Math.max(baseWindowHeight, contentLayout.implicitHeight + windowMargin * 2)
+    minimumHeight: contentLayout.implicitHeight + windowMargin * 2
     maximumHeight: minimumHeight
     visible: true
 
@@ -95,19 +112,30 @@ ApplicationWindow {
         colorGroup: SystemPalette.Disabled
     }
 
+    Connections {
+        target: hpa
+        function onSetErrorString(e) { errorLabel.text = e; infoText = ""; }
+        function onSetInfoString(t) { infoText = t; errorLabel.text = ""; }
+        function onSetPromptString(text, echo) {
+            promptText = normalizePromptLabel(text);
+            promptEcho = echo;
+        }
+        function onClearPasswordField() { passwordField.text = ""; }
+        function onFocusField() { passwordField.forceActiveFocus(); }
+        function onBlockInput(block) {
+            passwordField.readOnly = block;
+            if (!block) { passwordField.forceActiveFocus(); passwordField.selectAll(); }
+        }
+    }
+
     Item {
         id: mainLayout
-
         anchors.fill: parent
-        Keys.onEscapePressed: (e) => {
-            hpa.setResult("fail");
-        }
-        Keys.onReturnPressed: (e) => {
-            hpa.setResult("auth:" + passwordField.text);
-        }
-        Keys.onEnterPressed: (e) => {
-            hpa.setResult("auth:" + passwordField.text);
-        }
+
+        Keys.onEscapePressed: hpa.setResult("fail")
+        Keys.onReturnPressed: { if (passwordField.text.length > 0) hpa.setResult("auth:" + passwordField.text); }
+        Keys.onEnterPressed: { if (passwordField.text.length > 0) hpa.setResult("auth:" + passwordField.text); }
+        Keys.onPressed: (e) => { if (e.key === Qt.Key_CapsLock) capsOn = !capsOn; }
 
         ColumnLayout {
             id: contentLayout
@@ -115,12 +143,31 @@ ApplicationWindow {
             anchors.margins: windowMargin
             spacing: 0
 
+            // === IDENTITY ===
+            Image {
+                id: actionIcon
+                source: {
+                    var n = hpa.getIconName();
+                    var fallback = "system-lock-screen,dialog-password,security-high";
+                    return "image://themeicon/" + (n && n.length > 0 ? n + "," + fallback : fallback);
+                }
+                visible: status === Image.Ready
+                Layout.alignment: Qt.AlignHCenter
+                Layout.preferredWidth: fontMetrics.height * 2.6
+                Layout.preferredHeight: fontMetrics.height * 2.6
+                sourceSize.width: fontMetrics.height * 2.6
+                sourceSize.height: fontMetrics.height * 2.6
+                fillMode: Image.PreserveAspectFit
+                smooth: true
+            }
+
             Label {
                 text: "Authentication Required"
                 color: activePalette.windowText
                 font.bold: true
-                font.pointSize: Math.round(fontMetrics.height * 1.2)
+                font.pointSize: Math.round(fontMetrics.height * 1.25)
                 Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: s
             }
 
             Label {
@@ -128,49 +175,39 @@ ApplicationWindow {
                 color: disabledPalette.windowText
                 font.pointSize: Math.round(fontMetrics.height * 0.9)
                 Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: fontMetrics.height * 0.2
             }
 
-            Item { Layout.preferredHeight: fontMetrics.height * 1.0 }
-
-            HSeparator {}
-
-            Item { Layout.preferredHeight: fontMetrics.height * 0.8 }
-
+            // === CONTEXT ===
             Label {
                 text: messageText
                 color: activePalette.windowText
                 font.pointSize: Math.round(fontMetrics.height * 0.95)
                 Layout.alignment: Qt.AlignHCenter
-                Layout.maximumWidth: parent.width
+                Layout.fillWidth: true
+                Layout.topMargin: s3
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
-            }
-
-            Item {
-                Layout.preferredHeight: fontMetrics.height * 0.5
-                visible: commandText !== ""
             }
 
             Rectangle {
                 id: commandBox
                 visible: commandText !== ""
                 Layout.alignment: Qt.AlignHCenter
-                Layout.fillWidth: false
-                Layout.preferredWidth: Math.min(commandLabel.implicitWidth + fontMetrics.height * 1.0, windowWidth - fontMetrics.height * 4)
-                Layout.maximumWidth: windowWidth - fontMetrics.height * 4
-                Layout.preferredHeight: commandLabel.implicitHeight + fontMetrics.height * 1.0
+                Layout.preferredWidth: Math.min(commandLabel.implicitWidth + s4, windowWidth - s4 * 2)
+                Layout.maximumWidth: windowWidth - s4 * 2
+                Layout.preferredHeight: commandLabel.implicitHeight + s2
                 Layout.minimumHeight: fontMetrics.height * 2
+                Layout.topMargin: s2
 
                 color: activePalette.base
-                border.color: Qt.rgba(activePalette.windowText.r, activePalette.windowText.g, activePalette.windowText.b, 0.25)
+                border.color: Qt.rgba(activePalette.windowText.r, activePalette.windowText.g, activePalette.windowText.b, 0.20)
                 border.width: 1
                 radius: 6
 
                 Label {
                     id: commandLabel
                     anchors.fill: parent
-                    anchors.margins: fontMetrics.height * 0.5
+                    anchors.margins: s
                     text: commandText
                     color: activePalette.windowText
                     font.family: "monospace"
@@ -178,42 +215,67 @@ ApplicationWindow {
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     wrapMode: Text.WrapAnywhere
-                    elide: Text.ElideNone
                 }
             }
 
-            Item { Layout.preferredHeight: fontMetrics.height * 1.0 }
-
-            HSeparator {}
-
-            Item { Layout.preferredHeight: fontMetrics.height * 0.8 }
-
-            TextField {
-                id: passwordField
-
+            // === ACTION ===
+            Item {
+                id: passwordRow
                 Layout.fillWidth: true
-                Layout.leftMargin: fontMetrics.height * 3
-                Layout.rightMargin: fontMetrics.height * 3
-                placeholderText: "Password"
-                horizontalAlignment: TextInput.AlignHCenter
-                hoverEnabled: true
-                persistentSelection: true
-                echoMode: TextInput.Password
-                focus: true
+                Layout.leftMargin: s3
+                Layout.rightMargin: s3
+                Layout.topMargin: s3
+                implicitHeight: passwordField.implicitHeight
 
-                Connections {
-                    target: hpa
-                    function onFocusField() {
-                        passwordField.focus = true;
+                TextField {
+                    id: passwordField
+                    anchors.fill: parent
+                    placeholderText: promptText
+                    horizontalAlignment: TextInput.AlignHCenter
+                    hoverEnabled: true
+                    persistentSelection: true
+                    echoMode: promptEcho ? TextInput.Normal : TextInput.Password
+                    focus: true
+                    rightPadding: revealButton.visible ? revealButton.width + s : 0
+                    leftPadding: revealButton.visible ? revealButton.width + s : 0
+
+                    onTextChanged: {
+                        if (errorLabel.text !== "") errorLabel.text = "";
+                        if (infoText !== "") infoText = "";
                     }
-                    function onBlockInput(block) {
-                        passwordField.readOnly = block;
-                        if (!block) {
-                            passwordField.focus = true;
-                            passwordField.selectAll();
-                        }
+
+                    Keys.onPressed: (e) => { if (e.key === Qt.Key_CapsLock) capsOn = !capsOn; }
+                }
+
+                Button {
+                    id: revealButton
+                    visible: !promptEcho
+                    flat: true
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.rightMargin: s * 0.5
+                    height: parent.height - s * 0.5
+                    padding: s * 0.5
+                    checkable: true
+                    checked: passwordField.echoMode === TextInput.Normal
+                    text: "Show"
+                    onToggled: {
+                        passwordField.echoMode = checked ? TextInput.Normal : TextInput.Password
+                        passwordField.forceActiveFocus()
                     }
                 }
+            }
+
+            // status messages
+            Label {
+                id: capsLockLabel
+                visible: capsOn && passwordField.activeFocus
+                text: "Caps Lock is on"
+                color: activePalette.linkVisited
+                font.italic: true
+                font.pointSize: Math.round(fontMetrics.height * 0.8)
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: s
             }
 
             Label {
@@ -224,56 +286,114 @@ ApplicationWindow {
                 text: ""
                 visible: text !== ""
                 Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: fontMetrics.height * 0.3
-
-                Connections {
-                    target: hpa
-                    function onSetErrorString(e) {
-                        errorLabel.text = e;
-                    }
-                }
+                Layout.topMargin: s
             }
 
-            Item {
-                Layout.preferredHeight: fontMetrics.height * 0.5
-                Layout.fillHeight: true
-                Layout.maximumHeight: fontMetrics.height * 2
+            Label {
+                id: infoLabel
+                color: disabledPalette.windowText
+                font.pointSize: Math.round(fontMetrics.height * 0.85)
+                text: infoText
+                visible: text !== ""
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                Layout.topMargin: s
             }
 
-            HSeparator {}
-
-            Item { Layout.preferredHeight: fontMetrics.height * 0.8 }
-
+            // primary actions
             RowLayout {
                 Layout.alignment: Qt.AlignHCenter
-                spacing: fontMetrics.height * 1.0
+                Layout.topMargin: s3
+                spacing: s2
 
                 Button {
                     text: "Cancel"
-                    onClicked: {
-                        hpa.setResult("fail");
-                    }
+                    onClicked: hpa.setResult("fail")
                 }
 
                 Button {
                     text: "Authenticate"
                     highlighted: true
-                    onClicked: {
-                        hpa.setResult("auth:" + passwordField.text);
+                    enabled: passwordField.text.length > 0
+                    onClicked: hpa.setResult("auth:" + passwordField.text)
+                }
+            }
+
+            // details disclosure
+            Button {
+                id: detailsButton
+                visible: hpa.getActionId().length > 0 || hpa.getVendor().length > 0 || hpa.getVendorUrl().length > 0 || hpa.getDetailList().length > 0
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: s2
+                flat: true
+                checkable: true
+                checked: detailsExpanded
+                text: detailsExpanded ? "Hide details" : "Show details"
+                font.pointSize: Math.round(fontMetrics.height * 0.85)
+                onToggled: detailsExpanded = checked
+            }
+
+            Rectangle {
+                id: detailsBox
+                visible: detailsExpanded
+                Layout.fillWidth: true
+                Layout.topMargin: s
+                Layout.preferredHeight: detailsContent.implicitHeight + s4
+
+                color: activePalette.base
+                border.color: Qt.rgba(activePalette.windowText.r, activePalette.windowText.g, activePalette.windowText.b, 0.18)
+                border.width: 1
+                radius: 6
+
+                ColumnLayout {
+                    id: detailsContent
+                    anchors.fill: parent
+                    anchors.margins: s2
+                    spacing: s2
+
+                    DetailRow { keyText: "Action";     valueText: hpa.getActionId();  monospace: true  }
+                    DetailRow { keyText: "Vendor";     valueText: hpa.getVendor();    monospace: false }
+                    DetailRow { keyText: "Vendor URL"; valueText: hpa.getVendorUrl(); monospace: true  }
+
+                    Repeater {
+                        model: hpa.getDetailList()
+                        delegate: DetailRow {
+                            keyText: modelData.key
+                            valueText: modelData.value
+                            monospace: true
+                        }
                     }
                 }
             }
         }
     }
 
-    component Separator: Rectangle {
-        color: Qt.rgba(activePalette.windowText.r, activePalette.windowText.g, activePalette.windowText.b, 0.12)
-    }
-
-    component HSeparator: Separator {
-        implicitHeight: 1
+    component DetailRow: RowLayout {
+        property string keyText: ""
+        property string valueText: ""
+        property bool monospace: false
+        visible: valueText && valueText.length > 0
         Layout.fillWidth: true
-        Layout.leftMargin: fontMetrics.height * 2
-        Layout.rightMargin: fontMetrics.height * 2
+        spacing: s2
+
+        Label {
+            text: keyText
+            color: disabledPalette.windowText
+            font.pointSize: Math.round(fontMetrics.height * 0.85)
+            Layout.preferredWidth: fontMetrics.height * 6
+            Layout.alignment: Qt.AlignTop
+            horizontalAlignment: Text.AlignRight
+        }
+        Label {
+            text: valueText
+            color: activePalette.windowText
+            font.family: monospace ? "monospace" : font.family
+            font.pointSize: Math.round(fontMetrics.height * 0.9)
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
+            wrapMode: Text.WrapAnywhere
+        }
     }
 }
