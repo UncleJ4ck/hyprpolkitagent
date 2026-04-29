@@ -57,6 +57,8 @@ ApplicationWindow {
     property bool capsOn: false
     property bool detailsExpanded: false
     property var identityList: hpa.getIdentityList()
+    property string avatarPath: hpa.getAvatarPath()
+    property string keepNotice: hpa.getKeepAuthorizationNotice()
 
     function isQuoteChar(ch) {
         return ch === "`" || ch === "'" || ch === "\"";
@@ -145,21 +147,51 @@ ApplicationWindow {
             spacing: 0
 
             // === IDENTITY ===
-            Image {
-                id: actionIcon
-                source: {
-                    var n = hpa.getIconName();
-                    var fallback = "system-lock-screen,dialog-password,security-high";
-                    return "image://themeicon/" + (n && n.length > 0 ? n + "," + fallback : fallback);
-                }
-                visible: status === Image.Ready
+            Item {
+                id: identityIconWrap
                 Layout.alignment: Qt.AlignHCenter
-                Layout.preferredWidth: fontMetrics.height * 2.6
-                Layout.preferredHeight: fontMetrics.height * 2.6
-                sourceSize.width: fontMetrics.height * 2.6
-                sourceSize.height: fontMetrics.height * 2.6
-                fillMode: Image.PreserveAspectFit
-                smooth: true
+                Layout.preferredWidth: fontMetrics.height * 3.0
+                Layout.preferredHeight: fontMetrics.height * 3.0
+
+                Rectangle {
+                    id: avatarFrame
+                    anchors.fill: parent
+                    visible: avatarImage.visible
+                    radius: 8
+                    color: activePalette.base
+                    border.color: Qt.rgba(activePalette.windowText.r, activePalette.windowText.g, activePalette.windowText.b, 0.20)
+                    border.width: 1
+                    clip: true
+                }
+
+                Image {
+                    id: avatarImage
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    source: avatarPath
+                    visible: avatarPath !== "" && status === Image.Ready
+                    sourceSize.width: width
+                    sourceSize.height: height
+                    fillMode: Image.PreserveAspectCrop
+                    smooth: true
+                }
+
+                Image {
+                    id: actionIcon
+                    anchors.centerIn: parent
+                    source: {
+                        var n = hpa.getIconName();
+                        var fallback = "system-lock-screen,dialog-password,security-high";
+                        return "image://themeicon/" + (n && n.length > 0 ? n + "," + fallback : fallback);
+                    }
+                    visible: !avatarImage.visible && status === Image.Ready
+                    width: fontMetrics.height * 2.6
+                    height: fontMetrics.height * 2.6
+                    sourceSize.width: fontMetrics.height * 2.6
+                    sourceSize.height: fontMetrics.height * 2.6
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                }
             }
 
             Label {
@@ -329,6 +361,20 @@ ApplicationWindow {
                 font.pointSize: Math.round(fontMetrics.height * 0.85)
                 text: infoText
                 visible: text !== ""
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                Layout.topMargin: s
+            }
+
+            Label {
+                id: keepNoticeLabel
+                visible: keepNotice !== ""
+                text: keepNotice
+                color: disabledPalette.windowText
+                font.italic: true
+                font.pointSize: Math.round(fontMetrics.height * 0.8)
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
                 Layout.alignment: Qt.AlignHCenter

@@ -5,6 +5,13 @@
 
 #include <QStringList>
 #include <QVariantMap>
+#include <QDBusConnection>
+#include <QDBusInterface>
+#include <QDBusReply>
+#include <QDBusObjectPath>
+#include <QFile>
+#include <polkitqt1-authority.h>
+#include <polkitqt1-actiondescription.h>
 
 void CQMLIntegration::onExit() {
     g_pAgent->submitResultThreadSafe(result.toStdString());
@@ -135,6 +142,64 @@ QString CQMLIntegration::getInitialPrompt() {
 
 bool CQMLIntegration::getInitialPromptEcho() {
     return false;
+}
+
+QString CQMLIntegration::getKeepAuthorizationNotice() {
+    if (!g_pAgent->listener.session.inProgress)
+        return "";
+
+    auto* authority = PolkitQt1::Authority::instance();
+    if (!authority)
+        return "";
+
+    const PolkitQt1::ActionDescription::List actions = authority->enumerateActionsSync();
+    const QString actionId = g_pAgent->listener.session.actionId;
+
+    for (const auto& a : actions) {
+        if (a.actionId() != actionId)
+            continue;
+        const auto active = a.implicitActive();
+        if (active == PolkitQt1::ActionDescription::AuthenticationRequiredRetained || active == PolkitQt1::ActionDescription::AdministratorAuthenticationRequiredRetained)
+            return "This authorization will be remembered for the rest of this session.";
+        break;
+    }
+    return "";
+}
+
+QString CQMLIntegration::getAvatarPath() {
+    if (!g_pAgent->listener.session.inProgress)
+        return "";
+
+    const QString idStr = g_pAgent->listener.session.selectedUser.toString();
+    if (!idStr.startsWith("unix-user:"))
+        return "";
+
+    bool ok = false;
+    const quint64 uid = idStr.mid(10).toULongLong(&ok);
+    if (!ok)
+        return "";
+
+    QDBusInterface accounts("org.freedesktop.Accounts", "/org/freedesktop/Accounts", "org.freedesktop.Accounts", QDBusConnection::systemBus());
+    if (!accounts.isValid())
+        return "";
+
+    QDBusReply<QDBusObjectPath> userPath = accounts.call("FindUserById", QVariant::fromValue<qlonglong>(static_cast<qlonglong>(uid)));
+    if (!userPath.isValid() || userPath.value().path().isEmpty())
+        return "";
+
+    QDBusInterface user("org.freedesktop.Accounts", userPath.value().path(), "org.freedesktop.DBus.Properties", QDBusConnection::systemBus());
+    if (!user.isValid())
+        return "";
+
+    QDBusReply<QVariant> icon = user.call("Get", "org.freedesktop.Accounts.User", "IconFile");
+    if (!icon.isValid())
+        return "";
+
+    const QString path = icon.value().toString();
+    if (path.isEmpty() || !QFile::exists(path))
+        return "";
+
+    return "file://" + path;
 }
 
 void CQMLIntegration::setError(QString str) {
