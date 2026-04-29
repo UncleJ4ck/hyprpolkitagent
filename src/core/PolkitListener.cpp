@@ -112,6 +112,9 @@ void CPolkitListener::cancelAuthentication() {
 
     session.cancelled = true;
 
+    if (session.session)
+        session.session->cancel();
+
     finishAuth();
 }
 
@@ -162,7 +165,7 @@ void CPolkitListener::finishAuth() {
         return;
     }
 
-    std::print("> finishAuth: Gained auth, cleaning up.\n");
+    std::print("> finishAuth: {}, cleaning up.\n", session.cancelled ? "Cancelled" : "Gained auth");
 
     session.inProgress = false;
 
