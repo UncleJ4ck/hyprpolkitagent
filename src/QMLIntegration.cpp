@@ -13,8 +13,10 @@ void CQMLIntegration::onExit() {
 void CQMLIntegration::setResult(QString str) {
     result = str;
     g_pAgent->submitResultThreadSafe(result.toStdString());
-    if (str.startsWith("auth:"))
+    if (str.startsWith("auth:")) {
         result.fill(QChar('\0'));
+        str.fill(QChar('\0'));
+    }
 }
 
 QString CQMLIntegration::getMessage() {
