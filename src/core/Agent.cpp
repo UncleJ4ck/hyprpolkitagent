@@ -54,9 +54,11 @@ bool CAgent::start() {
 
     listener.registerListener(*sessionSubject, "/org/hyprland/PolicyKit1/AuthenticationAgent");
 
-    int          argc = 1;
-    char*        argv = (char*)"hyprpolkitagent";
-    QApplication app(argc, &argv);
+    static char  appname[] = "hyprpolkitagent";
+    static char* argvStorage[] = {appname, nullptr};
+    int          argc         = 1;
+    char**       argv         = argvStorage;
+    QApplication app(argc, argv);
 
     app.setApplicationName("Hyprland Polkit Agent");
     QGuiApplication::setQuitOnLastWindowClosed(false);

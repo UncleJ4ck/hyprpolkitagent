@@ -12,12 +12,12 @@ ApplicationWindow {
     readonly property real windowWidth: fontMetrics.height * 36
     readonly property real windowMargin: s * 4
 
-    property string cleanUser: {
-        var user = hpa.getUser();
-        if (user.startsWith("unix-user:")) {
-            return user.substring(10);
-        }
-        return user;
+    property string cleanUser: extractCleanUser(hpa.getUser())
+
+    function extractCleanUser(raw) {
+        if (raw && raw.startsWith("unix-user:"))
+            return raw.substring(10);
+        return raw;
     }
 
     property string rawMessage: hpa.getMessage()
@@ -228,8 +228,11 @@ ApplicationWindow {
                     return 0;
                 }
                 onActivated: {
-                    if (currentValue !== hpa.getUser())
+                    if (currentValue !== hpa.getUser()) {
                         hpa.selectUser(currentValue);
+                        cleanUser = extractCleanUser(hpa.getUser());
+                        avatarPath = hpa.getAvatarPath();
+                    }
                 }
             }
 
@@ -351,7 +354,7 @@ ApplicationWindow {
                 id: capsLockLabel
                 visible: capsOn && passwordField.activeFocus
                 text: qsTr("Caps Lock is on")
-                color: activePalette.linkVisited
+                color: activePalette.placeholderText
                 font.italic: true
                 font.pointSize: Math.round(fontMetrics.height * 0.8)
                 Layout.alignment: Qt.AlignHCenter
@@ -360,8 +363,7 @@ ApplicationWindow {
 
             Label {
                 id: errorLabel
-                color: activePalette.link
-                font.italic: true
+                color: "#e57373"
                 font.pointSize: Math.round(fontMetrics.height * 0.85)
                 text: ""
                 visible: text !== ""
