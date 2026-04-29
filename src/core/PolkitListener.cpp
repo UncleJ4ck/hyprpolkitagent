@@ -21,7 +21,7 @@ CPolkitListener::CPolkitListener(QObject* parent) : Listener(parent) {
 void CPolkitListener::startAuth(const PendingAuth& req) {
     if (req.identities.isEmpty()) {
         if (req.result) {
-            req.result->setError("No identities, this is a problem with your system configuration.");
+            req.result->setError(tr("No identities, this is a problem with your system configuration."));
             req.result->setCompleted();
         }
         std::print("> REJECTING: No idents\n");
@@ -78,7 +78,7 @@ void CPolkitListener::initiateAuthentication(const QString& actionId, const QStr
 
     if (identities.isEmpty()) {
         if (result) {
-            result->setError("No identities, this is a problem with your system configuration.");
+            result->setError(tr("No identities, this is a problem with your system configuration."));
             result->setCompleted();
         }
         std::print("> REJECTING: No idents\n");
@@ -87,7 +87,7 @@ void CPolkitListener::initiateAuthentication(const QString& actionId, const QStr
 
     if (isSessionLocked()) {
         if (result) {
-            result->setError("Session is locked.");
+            result->setError(tr("Session is locked."));
             result->setCompleted();
         }
         std::print("> REJECTING: Session is locked\n");
@@ -143,7 +143,7 @@ void CPolkitListener::completed(bool gainedAuthorization) {
     session.gainedAuth = gainedAuthorization;
 
     if (!gainedAuthorization && g_pAgent->authState.qmlIntegration)
-        g_pAgent->authState.qmlIntegration->setError("Authentication failed");
+        g_pAgent->authState.qmlIntegration->setError(tr("Authentication failed"));
 
     finishAuth();
 }
