@@ -46,7 +46,7 @@ ApplicationWindow {
     }
     property string messageText: {
         if (commandText !== "") {
-            return "Authentication is needed to run";
+            return qsTr("Authentication is needed to run");
         }
         return rawMessage;
     }
@@ -84,7 +84,7 @@ ApplicationWindow {
         while (t.length > 0 && t[t.length - 1] === ":") {
             t = t.slice(0, -1).trim();
         }
-        return t.length > 0 ? t : "Password";
+        return t.length > 0 ? t : qsTr("Password");
     }
 
     flags: Qt.Dialog | Qt.WindowStaysOnTopHint
@@ -195,7 +195,7 @@ ApplicationWindow {
             }
 
             Label {
-                text: "Authentication Required"
+                text: qsTr("Authentication Required")
                 color: activePalette.windowText
                 font.bold: true
                 font.pointSize: Math.round(fontMetrics.height * 1.25)
@@ -204,7 +204,7 @@ ApplicationWindow {
             }
 
             Label {
-                text: "for " + cleanUser
+                text: qsTr("for %1").arg(cleanUser)
                 color: disabledPalette.windowText
                 font.pointSize: Math.round(fontMetrics.height * 0.9)
                 Layout.alignment: Qt.AlignHCenter
@@ -324,7 +324,7 @@ ApplicationWindow {
                     padding: s * 0.5
                     checkable: true
                     checked: passwordField.echoMode === TextInput.Normal
-                    text: "Show"
+                    text: qsTr("Show")
                     onToggled: {
                         passwordField.echoMode = checked ? TextInput.Normal : TextInput.Password
                         passwordField.forceActiveFocus()
@@ -336,7 +336,7 @@ ApplicationWindow {
             Label {
                 id: capsLockLabel
                 visible: capsOn && passwordField.activeFocus
-                text: "Caps Lock is on"
+                text: qsTr("Caps Lock is on")
                 color: activePalette.linkVisited
                 font.italic: true
                 font.pointSize: Math.round(fontMetrics.height * 0.8)
@@ -389,12 +389,12 @@ ApplicationWindow {
                 spacing: s2
 
                 Button {
-                    text: "Cancel"
+                    text: qsTr("Cancel")
                     onClicked: hpa.setResult("fail")
                 }
 
                 Button {
-                    text: "Authenticate"
+                    text: qsTr("Authenticate")
                     highlighted: true
                     enabled: passwordField.text.length > 0
                     onClicked: hpa.setResult("auth:" + passwordField.text)
@@ -410,7 +410,7 @@ ApplicationWindow {
                 flat: true
                 checkable: true
                 checked: detailsExpanded
-                text: detailsExpanded ? "Hide details" : "Show details"
+                text: detailsExpanded ? qsTr("Hide details") : qsTr("Show details")
                 font.pointSize: Math.round(fontMetrics.height * 0.85)
                 onToggled: detailsExpanded = checked
             }
@@ -433,9 +433,9 @@ ApplicationWindow {
                     anchors.margins: s2
                     spacing: s2
 
-                    DetailRow { keyText: "Action";     valueText: hpa.getActionId();  monospace: true  }
-                    DetailRow { keyText: "Vendor";     valueText: hpa.getVendor();    monospace: false }
-                    DetailRow { keyText: "Vendor URL"; valueText: hpa.getVendorUrl(); monospace: true  }
+                    DetailRow { keyText: qsTr("Action");     valueText: hpa.getActionId();  monospace: true  }
+                    DetailRow { keyText: qsTr("Vendor");     valueText: hpa.getVendor();    monospace: false }
+                    DetailRow { keyText: qsTr("Vendor URL"); valueText: hpa.getVendorUrl(); monospace: true  }
 
                     Repeater {
                         model: hpa.getDetailList()

@@ -27,7 +27,7 @@ void CQMLIntegration::setResult(QString str) {
 }
 
 QString CQMLIntegration::getMessage() {
-    return g_pAgent->listener.session.inProgress ? g_pAgent->listener.session.message : "An application is requesting authentication.";
+    return g_pAgent->listener.session.inProgress ? g_pAgent->listener.session.message : tr("An application is requesting authentication.");
 }
 
 QString CQMLIntegration::getCommand() {
@@ -66,7 +66,7 @@ QString CQMLIntegration::getCommand() {
 }
 
 QString CQMLIntegration::getUser() {
-    return g_pAgent->listener.session.inProgress ? g_pAgent->listener.session.selectedUser.toString() : "an unknown user";
+    return g_pAgent->listener.session.inProgress ? g_pAgent->listener.session.selectedUser.toString() : tr("an unknown user");
 }
 
 QString CQMLIntegration::getActionId() {
@@ -137,7 +137,7 @@ void CQMLIntegration::selectUser(QString identityString) {
 }
 
 QString CQMLIntegration::getInitialPrompt() {
-    return "Password";
+    return tr("Password");
 }
 
 bool CQMLIntegration::getInitialPromptEcho() {
@@ -160,7 +160,7 @@ QString CQMLIntegration::getKeepAuthorizationNotice() {
             continue;
         const auto active = a.implicitActive();
         if (active == PolkitQt1::ActionDescription::AuthenticationRequiredRetained || active == PolkitQt1::ActionDescription::AdministratorAuthenticationRequiredRetained)
-            return "This authorization will be remembered for the rest of this session.";
+            return tr("This authorization will be remembered for the rest of this session.");
         break;
     }
     return "";
