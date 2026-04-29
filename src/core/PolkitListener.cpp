@@ -1,5 +1,8 @@
 #include <QDebug>
 #include <QInputDialog>
+#include <QDBusConnection>
+#include <QDBusInterface>
+#include <QDBusReply>
 
 #include "PolkitListener.hpp"
 #include "../QMLIntegration.hpp"
@@ -79,6 +82,15 @@ void CPolkitListener::initiateAuthentication(const QString& actionId, const QStr
             result->setCompleted();
         }
         std::print("> REJECTING: No idents\n");
+        return;
+    }
+
+    if (isSessionLocked()) {
+        if (result) {
+            result->setError("Session is locked.");
+            result->setCompleted();
+        }
+        std::print("> REJECTING: Session is locked\n");
         return;
     }
 
@@ -199,6 +211,19 @@ void CPolkitListener::cancelPending() {
     session.cancelled = true;
 
     finishAuth();
+}
+
+bool CPolkitListener::isSessionLocked() const {
+    QDBusInterface iface("org.freedesktop.login1",
+                         "/org/freedesktop/login1/session/auto",
+                         "org.freedesktop.DBus.Properties",
+                         QDBusConnection::systemBus());
+    if (!iface.isValid())
+        return false;
+    QDBusReply<QVariant> reply = iface.call("Get", "org.freedesktop.login1.Session", "LockedHint");
+    if (!reply.isValid())
+        return false;
+    return reply.value().toBool();
 }
 
 void CPolkitListener::selectUser(const QString& identityString) {
