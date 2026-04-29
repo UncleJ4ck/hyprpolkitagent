@@ -35,10 +35,12 @@ class CQMLIntegration : public QObject {
     Q_INVOKABLE QString getVendorUrl();
     Q_INVOKABLE QString getIconName();
     Q_INVOKABLE QVariantList getDetailList();
+    Q_INVOKABLE QVariantList getIdentityList();
     Q_INVOKABLE QString getInitialPrompt();
     Q_INVOKABLE bool    getInitialPromptEcho();
 
     Q_INVOKABLE void    setResult(QString str);
+    Q_INVOKABLE void    selectUser(QString identityString);
 
   public slots:
     void onExit();

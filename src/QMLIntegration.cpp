@@ -110,6 +110,25 @@ QVariantList CQMLIntegration::getDetailList() {
     return out;
 }
 
+QVariantList CQMLIntegration::getIdentityList() {
+    QVariantList out;
+    if (!g_pAgent->listener.session.inProgress)
+        return out;
+
+    for (const auto& id : g_pAgent->listener.session.identities) {
+        const QString s = id.toString();
+        QVariantMap row;
+        row["id"]   = s;
+        row["name"] = s.startsWith("unix-user:") ? s.mid(10) : s;
+        out.append(row);
+    }
+    return out;
+}
+
+void CQMLIntegration::selectUser(QString identityString) {
+    g_pAgent->listener.selectUser(identityString);
+}
+
 QString CQMLIntegration::getInitialPrompt() {
     return "Password";
 }
