@@ -125,8 +125,10 @@ void CPolkitListener::cancelAuthentication() {
 
     session.cancelled = true;
 
-    if (session.session)
+    if (session.session) {
+        session.session->disconnect(this);
         session.session->cancel();
+    }
 
     finishAuth();
 }
@@ -206,6 +208,7 @@ void CPolkitListener::cancelPending() {
     if (!session.session)
         return;
 
+    session.session->disconnect(this);
     session.session->cancel();
 
     session.cancelled = true;
