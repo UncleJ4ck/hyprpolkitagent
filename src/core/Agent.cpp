@@ -121,4 +121,8 @@ void CAgent::submitResultThreadSafe(const std::string& result) {
         listener.submitPassword(result.substr(result.find(":") + 1).c_str());
     else
         listener.cancelPending();
+
+    std::fill(lastAuthResult.result.begin(), lastAuthResult.result.end(), '\0');
+    lastAuthResult.result.clear();
+    lastAuthResult.result.shrink_to_fit();
 }
