@@ -3,36 +3,39 @@ A simple polkit authentication agent for Hyprland, written in QT/QML.
 
 ![](./assets/polkit.png)
 
-## Roadmap / TODO
+## Features
 
 ### Core UX / flow
-- [ ] Use PAM request text for the prompt (not always "Password")
-- [ ] Surface PAM info/error messages in the UI
-- [ ] Disable Authenticate until input is present; reset input on failure
-- [ ] Better retry UX (clear field, refocus, visible error)
-- [ ] Password visibility toggle (show/hide)
-- [ ] Caps Lock warning on the password field
+- [x] Uses PAM request text for the prompt (not always "Password")
+- [x] Surfaces PAM info/error messages in the UI
+- [x] Disables Authenticate until input is present; resets input on failure
+- [x] Retry UX (clears field, refocuses, shows visible error)
+- [x] Password visibility toggle (show/hide)
+- [x] Caps Lock warning on the password field
 
 ### Identity handling
-- [ ] Prefer the current user when multiple identities are supplied
-- [ ] Optional user selector when multiple admin identities are available (extra)
+- [x] Prefers the current user when multiple identities are supplied
+- [x] User selector when multiple admin identities are available
 
 ### Robustness
-- [x] Queue concurrent requests instead of rejecting them
-- [ ] Consistent cleanup on cancel/timeout
-- [ ] Avoid showing prompts while the session is locked (if applicable)
+- [x] Queues concurrent requests instead of rejecting them
+- [x] Consistent cleanup on cancel (cancels running PAM session, distinguishes paths)
+- [x] Refuses to prompt while the session is locked (logind `LockedHint`)
 
 ### Security / privacy
-- [ ] Secure/zeroized password buffer (best-effort in Qt)
-- [ ] Avoid clipboard exposure; clear buffers on close
+- [x] Zeroizes password buffer after submission
 
-### Optional transparency / polish (extras)
-- [ ] Expandable "Details" section (action id, vendor, vendor URL)
-- [ ] "Remember authorization" only if policy supports it; document tradeoffs
-- [ ] Action/app icon support (use iconName/details when present)
-- [ ] User avatar display (if available)
-- [ ] Multi-monitor placement (center on active monitor / requester)
-- [ ] Full i18n (Qt translations)
+### Transparency / polish
+- [x] Expandable "Details" section (action id, vendor, vendor URL, extras)
+- [x] Surfaces "Remember authorization" notice when policy supports it
+- [x] Action/app icon support (uses `iconName`/details, falls back to system theme)
+- [x] User avatar display (via AccountsService)
+- [x] User-visible strings wrapped for translation (`qsTr` / `tr`)
+
+### Window placement
+Window positioning under Wayland (xdg-shell) is decided by the compositor, so
+the agent does not attempt to set absolute coordinates. Hyprland centers
+floating dialogs by default.
 
 ## Usage
 
