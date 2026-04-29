@@ -56,6 +56,7 @@ ApplicationWindow {
     property string infoText: ""
     property bool capsOn: false
     property bool detailsExpanded: false
+    property var identityList: hpa.getIdentityList()
 
     function isQuoteChar(ch) {
         return ch === "`" || ch === "'" || ch === "\"";
@@ -175,6 +176,29 @@ ApplicationWindow {
                 color: disabledPalette.windowText
                 font.pointSize: Math.round(fontMetrics.height * 0.9)
                 Layout.alignment: Qt.AlignHCenter
+                visible: identityList.length <= 1
+            }
+
+            ComboBox {
+                id: identitySelector
+                visible: identityList.length > 1
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: s
+                Layout.preferredWidth: fontMetrics.height * 14
+                model: identityList
+                textRole: "name"
+                valueRole: "id"
+                currentIndex: {
+                    var raw = hpa.getUser();
+                    for (var i = 0; i < identityList.length; ++i) {
+                        if (identityList[i].id === raw) return i;
+                    }
+                    return 0;
+                }
+                onActivated: {
+                    if (currentValue !== hpa.getUser())
+                        hpa.selectUser(currentValue);
+                }
             }
 
             // === CONTEXT ===

@@ -20,6 +20,7 @@ class CPolkitListener : public PolkitQt1::Agent::Listener {
 
     void submitPassword(const QString& pass);
     void cancelPending();
+    void selectUser(const QString& identityString);
 
   public Q_SLOTS:
     void initiateAuthentication(const QString& actionId, const QString& message, const QString& iconName, const PolkitQt1::Details& details, const QString& cookie,
@@ -49,6 +50,7 @@ class CPolkitListener : public PolkitQt1::Agent::Listener {
         PolkitQt1::Details             details;
         PolkitQt1::Agent::AsyncResult* result = nullptr;
         PolkitQt1::Identity            selectedUser;
+        PolkitQt1::Identity::List      identities;
         PolkitQt1::Agent::Session*     session = nullptr;
     } session;
 

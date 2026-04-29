@@ -34,6 +34,7 @@ void CPolkitListener::startAuth(const PendingAuth& req) {
         }
     }
     session.selectedUser = selected;
+    session.identities   = req.identities;
     session.cookie       = req.cookie;
     session.result       = req.result;
     session.actionId     = req.actionId;
@@ -198,4 +199,37 @@ void CPolkitListener::cancelPending() {
     session.cancelled = true;
 
     finishAuth();
+}
+
+void CPolkitListener::selectUser(const QString& identityString) {
+    if (!session.inProgress)
+        return;
+
+    PolkitQt1::Identity newId;
+    for (const auto& id : session.identities) {
+        if (id.toString() == identityString) {
+            newId = id;
+            break;
+        }
+    }
+    if (!newId.isValid() || newId.toString() == session.selectedUser.toString())
+        return;
+
+    std::print("> selectUser: switching to {}\n", identityString.toStdString());
+
+    session.selectedUser = newId;
+
+    if (session.session) {
+        session.session->disconnect(this);
+        session.session->cancel();
+        session.session->deleteLater();
+        session.session = nullptr;
+    }
+
+    if (g_pAgent->authState.qmlIntegration) {
+        g_pAgent->authState.qmlIntegration->clearField();
+        g_pAgent->authState.qmlIntegration->blockInput(false);
+    }
+
+    reattempt();
 }
