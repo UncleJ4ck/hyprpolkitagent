@@ -297,11 +297,25 @@ ApplicationWindow {
                     rightPadding: reservedSide
 
                     onTextChanged: {
+                        if (text.length === 0) return;
                         if (errorLabel.text !== "") errorLabel.text = "";
                         if (infoText !== "") infoText = "";
                     }
 
-                    Keys.onPressed: (e) => { if (e.key === Qt.Key_CapsLock) capsOn = !capsOn; }
+                    Keys.onPressed: (e) => {
+                        if (e.key === Qt.Key_CapsLock) {
+                            capsOn = !capsOn;
+                            return;
+                        }
+                        if (e.text && e.text.length === 1) {
+                            const c = e.text;
+                            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+                                const isShift = (e.modifiers & Qt.ShiftModifier) !== 0;
+                                const isUpper = c === c.toUpperCase() && c !== c.toLowerCase();
+                                capsOn = (isUpper && !isShift) || (!isUpper && isShift);
+                            }
+                        }
+                    }
 
                     Label {
                         id: placeholderLabel
