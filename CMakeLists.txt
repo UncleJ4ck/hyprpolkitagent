@@ -8,7 +8,7 @@ project(hpa VERSION ${VER} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Quick QuickControls2)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Quick QuickControls2 DBus)
 find_package(PkgConfig REQUIRED)
 set(CMAKE_CXX_STANDARD 23)
 
@@ -43,7 +43,7 @@ qt_add_qml_module(hyprpolkitagent
 )
 
 target_link_libraries(hyprpolkitagent
-    PRIVATE Qt6::Widgets Qt6::Quick Qt6::Gui Qt6::QuickControls2 PkgConfig::deps
+    PRIVATE Qt6::Widgets Qt6::Quick Qt6::Gui Qt6::QuickControls2 Qt6::DBus PkgConfig::deps
 )
 
 include(GNUInstallDirs)

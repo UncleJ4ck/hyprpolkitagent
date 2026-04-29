@@ -60,6 +60,7 @@ class CPolkitListener : public PolkitQt1::Agent::Listener {
     void finishAuth();
     void startAuth(const PendingAuth& req);
     void startNextQueued();
+    bool isSessionLocked() const;
 
     friend class CAgent;
     friend class CQMLIntegration;
