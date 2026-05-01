@@ -1,5 +1,6 @@
 #include "Agent.hpp"
 #include "../ui/Dialog.hpp"
+#include "../config/Config.hpp"
 
 #include <chrono>
 #include <print>
@@ -11,6 +12,9 @@ CAgent::CAgent()  = default;
 CAgent::~CAgent() = default;
 
 bool CAgent::start() {
+    g_pConfigManager = new CConfigManager();
+    g_pConfigManager->load();
+
     m_backend = IBackend::create();
     if (!m_backend) {
         std::print(stderr, "failed to create hyprtoolkit backend\n");
