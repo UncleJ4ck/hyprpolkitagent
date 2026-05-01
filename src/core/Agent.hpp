@@ -1,50 +1,56 @@
 #pragma once
 
-#include <QApplication>
-#include <QQmlApplicationEngine>
-#include <QQmlContext>
-#include <QQuickStyle>
-#include <QScreen>
+#include <hyprutils/memory/SharedPtr.hpp>
+#include <hyprutils/memory/UniquePtr.hpp>
+
+#include <hyprtoolkit/core/Backend.hpp>
+
+#include <memory>
+#include <string>
 
 #include "PolkitListener.hpp"
-#include <polkitqt1-subject.h>
 
-#include <hyprutils/memory/WeakPtr.hpp>
-using namespace Hyprutils::Memory;
-#define SP CSharedPointer
-#define WP CWeakPointer
-
-class CQMLIntegration;
+class CDialog;
 
 class CAgent {
   public:
     CAgent();
     ~CAgent();
 
-    void submitResultThreadSafe(const std::string& result);
-    void resetAuthState();
     bool start();
-    void initAuthPrompt();
+
+    // Called by listener when polkitd asks for a new authentication.
+    // Spawns the dialog and stores the active session pointer.
+    void beginAuth(CPolkitListener::SAuthRequest req);
+
+    // Called by listener when the active PAM session is over (success/fail).
+    // Tears down the dialog.
+    void endAuth();
+
+    // Called by listener when PAM emits a request/info/error.
+    void onRequest(const std::string& prompt, bool echo);
+    void onInfo(const std::string& text);
+    void onError(const std::string& text);
+
+    // Called by the dialog when the user submits or cancels.
+    void submitPassword(const std::string& password);
+    void cancel();
+
+    // Called by the dialog ComboBox when the user picks another identity.
+    void selectIdentity(const std::string& identityString);
+
+    Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IBackend> backend() { return m_backend; }
+
+    CPolkitListener&                                         listener() { return m_listener; }
 
   private:
-    struct {
-        bool                   authing        = false;
-        QQmlApplicationEngine* qmlEngine      = nullptr;
-        CQMLIntegration*       qmlIntegration = nullptr;
-    } authState;
+    void                                                     schedulePump();
 
-    struct {
-        std::string result;
-        bool        used = true;
-    } lastAuthResult;
+    Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IBackend> m_backend;
 
-    CPolkitListener                   listener;
-    SP<PolkitQt1::UnixSessionSubject> sessionSubject;
+    CPolkitListener                                          m_listener;
 
-    bool                              resultReady();
-
-    friend class CQMLIntegration;
-    friend class CPolkitListener;
+    Hyprutils::Memory::CUniquePointer<CDialog>               m_dialog;
 };
 
 inline std::unique_ptr<CAgent> g_pAgent;

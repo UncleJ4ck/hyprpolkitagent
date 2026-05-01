@@ -1,130 +1,76 @@
-#define POLKIT_AGENT_I_KNOW_API_IS_SUBJECT_TO_CHANGE 1
-
-#include <polkitagent/polkitagent.h>
-#include <print>
-#include <QtCore/QString>
-#include <QIcon>
-#include <QPixmap>
-#include <QQuickImageProvider>
-using namespace Qt::Literals::StringLiterals;
-
 #include "Agent.hpp"
-#include "../QMLIntegration.hpp"
+#include "../ui/Dialog.hpp"
 
-namespace {
-class CThemeIconProvider : public QQuickImageProvider {
-  public:
-    CThemeIconProvider() : QQuickImageProvider(QQuickImageProvider::Pixmap) {
-        ;
-    }
+#include <chrono>
+#include <print>
 
-    QPixmap requestPixmap(const QString& id, QSize* size, const QSize& requestedSize) override {
-        const QSize sz = requestedSize.isValid() && !requestedSize.isEmpty() ? requestedSize : QSize(48, 48);
-        QIcon       icon;
-        for (const auto& name : id.split(',', Qt::SkipEmptyParts)) {
-            const QString trimmed = name.trimmed();
-            if (trimmed.isEmpty())
-                continue;
-            QIcon candidate = QIcon::fromTheme(trimmed);
-            if (!candidate.isNull()) {
-                icon = candidate;
-                break;
-            }
-        }
-        if (icon.isNull())
-            icon = QIcon::fromTheme("system-lock-screen");
-        QPixmap pm = icon.pixmap(sz);
-        if (size)
-            *size = pm.size();
-        return pm;
-    }
-};
-}
+using namespace Hyprutils::Memory;
+using namespace Hyprtoolkit;
 
-CAgent::CAgent() {
-    ;
-}
-
-CAgent::~CAgent() {
-    ;
-}
+CAgent::CAgent()  = default;
+CAgent::~CAgent() = default;
 
 bool CAgent::start() {
-    sessionSubject = makeShared<PolkitQt1::UnixSessionSubject>(getpid());
+    m_backend = IBackend::create();
+    if (!m_backend) {
+        std::print(stderr, "failed to create hyprtoolkit backend\n");
+        return false;
+    }
 
-    listener.registerListener(*sessionSubject, "/org/hyprland/PolicyKit1/AuthenticationAgent");
+    if (!m_listener.registerAgent())
+        return false;
 
-    static char  appname[] = "hyprpolkitagent";
-    static char* argvStorage[] = {appname, nullptr};
-    int          argc         = 1;
-    char**       argv         = argvStorage;
-    QApplication app(argc, argv);
+    schedulePump();
 
-    app.setApplicationName("Hyprland Polkit Agent");
-    QGuiApplication::setQuitOnLastWindowClosed(false);
-
-    app.exec();
-
+    m_backend->enterLoop();
     return true;
 }
 
-void CAgent::resetAuthState() {
-    if (authState.authing) {
-        authState.authing = false;
+void CAgent::schedulePump() {
+    m_backend->addTimer(
+        std::chrono::milliseconds(50),
+        [this](Hyprutils::Memory::CAtomicSharedPointer<CTimer>, void*) {
+            while (g_main_context_iteration(nullptr, FALSE)) {}
+            schedulePump();
+        },
+        nullptr);
+}
 
-        if (authState.qmlEngine)
-            authState.qmlEngine->deleteLater();
-        if (authState.qmlIntegration)
-            authState.qmlIntegration->deleteLater();
+void CAgent::beginAuth(CPolkitListener::SAuthRequest req) {
+    m_dialog = CUniquePointer<CDialog>(new CDialog(req, m_backend));
+    m_dialog->show();
+}
 
-        authState.qmlEngine      = nullptr;
-        authState.qmlIntegration = nullptr;
+void CAgent::endAuth() {
+    if (m_dialog) {
+        m_dialog->close();
+        m_dialog.reset();
     }
 }
 
-void CAgent::initAuthPrompt() {
-    resetAuthState();
-
-    if (!listener.session.inProgress) {
-        std::print(stderr, "INTERNAL ERROR: Spawning qml prompt but session isn't in progress\n");
-        return;
-    }
-
-    std::print("Spawning qml prompt\n");
-
-    authState.authing = true;
-
-    authState.qmlIntegration = new CQMLIntegration();
-
-    if (qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE"))
-        QQuickStyle::setStyle("org.hyprland.style");
-
-    authState.qmlEngine = new QQmlApplicationEngine();
-    authState.qmlEngine->addImageProvider("themeicon", new CThemeIconProvider());
-    authState.qmlEngine->rootContext()->setContextProperty("hpa", authState.qmlIntegration);
-    authState.qmlEngine->load(QUrl{u"qrc:/qt/qml/hpa/qml/main.qml"_s});
-
-    authState.qmlIntegration->focusField();
+void CAgent::onRequest(const std::string& prompt, bool echo) {
+    if (m_dialog)
+        m_dialog->setPrompt(prompt, echo);
 }
 
-bool CAgent::resultReady() {
-    return !lastAuthResult.used;
+void CAgent::onInfo(const std::string& text) {
+    if (m_dialog)
+        m_dialog->setInfo(text);
 }
 
-void CAgent::submitResultThreadSafe(const std::string& result) {
-    lastAuthResult.used   = false;
-    lastAuthResult.result = result;
+void CAgent::onError(const std::string& text) {
+    if (m_dialog)
+        m_dialog->setError(text);
+}
 
-    const bool PASS = result.starts_with("auth:");
+void CAgent::submitPassword(const std::string& password) {
+    m_listener.submitResponse(password);
+}
 
-    std::print("Got result from qml: {}\n", PASS ? "auth:**PASSWORD**" : result);
+void CAgent::cancel() {
+    m_listener.cancelCurrent();
+}
 
-    if (PASS)
-        listener.submitPassword(result.substr(result.find(":") + 1).c_str());
-    else
-        listener.cancelPending();
-
-    std::fill(lastAuthResult.result.begin(), lastAuthResult.result.end(), '\0');
-    lastAuthResult.result.clear();
-    lastAuthResult.result.shrink_to_fit();
+void CAgent::selectIdentity(const std::string& s) {
+    m_listener.selectIdentity(s);
 }

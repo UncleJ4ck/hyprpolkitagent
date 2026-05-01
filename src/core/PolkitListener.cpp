@@ -1,263 +1,330 @@
-#include <QDebug>
-#include <QInputDialog>
-#include <QDBusConnection>
-#include <QDBusInterface>
-#include <QDBusReply>
+#define POLKIT_AGENT_I_KNOW_API_IS_SUBJECT_TO_CHANGE 1
 
 #include "PolkitListener.hpp"
-#include "../QMLIntegration.hpp"
+
 #include "Agent.hpp"
-#include <polkitqt1-agent-session.h>
 
 #include <print>
 #include <unistd.h>
 
-using namespace PolkitQt1::Agent;
+#include <sdbus-c++/sdbus-c++.h>
 
-CPolkitListener::CPolkitListener(QObject* parent) : Listener(parent) {
-    ;
-}
-
-void CPolkitListener::startAuth(const PendingAuth& req) {
-    if (req.identities.isEmpty()) {
-        if (req.result) {
-            req.result->setError(tr("No identities, this is a problem with your system configuration."));
-            req.result->setCompleted();
-        }
-        std::print("> REJECTING: No idents\n");
-        return;
-    }
-
-    const QString preferred = QStringLiteral("unix-user:%1").arg(::geteuid());
-    PolkitQt1::Identity selected = req.identities.at(0);
-    for (const auto& id : req.identities) {
-        if (id.toString() == preferred) {
-            selected = id;
-            break;
+namespace {
+    bool isSessionLocked() {
+        try {
+            auto conn  = sdbus::createSystemBusConnection();
+            auto proxy = sdbus::createProxy(*conn, sdbus::ServiceName{"org.freedesktop.login1"},
+                                            sdbus::ObjectPath{"/org/freedesktop/login1/session/auto"});
+            sdbus::Variant v;
+            proxy->callMethod("Get").onInterface("org.freedesktop.DBus.Properties").withArguments(std::string{"org.freedesktop.login1.Session"}, std::string{"LockedHint"}).storeResultsTo(v);
+            return v.get<bool>();
+        } catch (...) {
+            return false;
         }
     }
-    session.selectedUser = selected;
-    session.identities   = req.identities;
-    session.cookie       = req.cookie;
-    session.result       = req.result;
-    session.actionId     = req.actionId;
-    session.message      = req.message;
-    session.iconName     = req.iconName;
-    session.details      = req.details;
-    session.gainedAuth   = false;
-    session.cancelled    = false;
-    session.inProgress   = true;
-
-    g_pAgent->initAuthPrompt();
-
-    reattempt();
 }
 
-void CPolkitListener::startNextQueued() {
-    if (session.inProgress || m_queue.empty())
-        return;
+// ----- HpaListener GObject -----
 
-    const PendingAuth next = m_queue.front();
-    m_queue.pop_front();
-    startAuth(next);
-}
+struct _HpaListener {
+    PolkitAgentListener parent_instance;
+};
 
-void CPolkitListener::initiateAuthentication(const QString& actionId, const QString& message, const QString& iconName, const PolkitQt1::Details& details, const QString& cookie,
-                                             const PolkitQt1::Identity::List& identities, AsyncResult* result) {
+G_DEFINE_FINAL_TYPE(HpaListener, hpa_listener, POLKIT_AGENT_TYPE_LISTENER)
 
-    std::print("> New authentication session\n");
+static void hpa_listener_initiate_authentication(PolkitAgentListener* listener, const gchar* action_id, const gchar* message, const gchar* icon_name, PolkitDetails* details, const gchar* cookie,
+                                                 GList* identities, GCancellable* cancellable, GAsyncReadyCallback callback, gpointer user_data) {
+    GTask* task = g_task_new(listener, cancellable, callback, user_data);
 
-    PendingAuth req;
-    req.actionId   = actionId;
-    req.message    = message;
-    req.iconName   = iconName;
-    req.details    = details;
-    req.cookie     = cookie;
-    req.identities = identities;
-    req.result     = result;
+    CPolkitListener::SAuthRequest req;
+    req.actionId = action_id ? action_id : "";
+    req.message  = message ? message : "";
+    req.iconName = icon_name ? icon_name : "";
+    req.cookie   = cookie ? cookie : "";
+    req.task     = task;
 
-    if (identities.isEmpty()) {
-        if (result) {
-            result->setError(tr("No identities, this is a problem with your system configuration."));
-            result->setCompleted();
+    for (GList* l = identities; l; l = l->next) {
+        PolkitIdentity* id  = static_cast<PolkitIdentity*>(l->data);
+        gchar*          str = polkit_identity_to_string(id);
+        std::string     raw = str ? str : "";
+        g_free(str);
+        std::string display = raw;
+        if (raw.starts_with("unix-user:"))
+            display = raw.substr(10);
+        req.identities.push_back({raw, display});
+        req.gIdentities = g_list_append(req.gIdentities, g_object_ref(id));
+    }
+
+    if (details) {
+        const gchar* cmd = polkit_details_lookup(details, "command_line");
+        if (!cmd)
+            cmd = polkit_details_lookup(details, "cmdline");
+        if (!cmd)
+            cmd = polkit_details_lookup(details, "command");
+        req.command = cmd ? cmd : "";
+
+        const gchar* v;
+        v             = polkit_details_lookup(details, "polkit.vendor");
+        req.vendor    = v ? v : "";
+        v             = polkit_details_lookup(details, "polkit.vendor_url");
+        req.vendorUrl = v ? v : "";
+
+        gchar** keys = polkit_details_get_keys(details);
+        if (keys) {
+            for (int i = 0; keys[i]; i++) {
+                std::string k = keys[i];
+                if (k.starts_with("polkit."))
+                    continue;
+                if (k == "command_line" || k == "cmdline" || k == "command")
+                    continue;
+                const gchar* val = polkit_details_lookup(details, keys[i]);
+                if (val && *val)
+                    req.details.emplace_back(k, val);
+            }
+            g_strfreev(keys);
         }
-        std::print("> REJECTING: No idents\n");
-        return;
     }
 
-    if (isSessionLocked()) {
-        if (result) {
-            result->setError(tr("Session is locked."));
-            result->setCompleted();
-        }
-        std::print("> REJECTING: Session is locked\n");
-        return;
-    }
-
-    if (session.inProgress) {
-        m_queue.push_back(req);
-        std::print("> QUEUED: Another session present. Queue size: {}\n", m_queue.size());
-        return;
-    }
-
-    startAuth(req);
+    g_pAgent->listener().initiateAuth(std::move(req));
 }
 
-void CPolkitListener::reattempt() {
-    session.cancelled = false;
-
-    session.session = new Session(session.selectedUser, session.cookie, session.result);
-    connect(session.session, SIGNAL(request(QString, bool)), this, SLOT(request(QString, bool)));
-    connect(session.session, SIGNAL(completed(bool)), this, SLOT(completed(bool)));
-    connect(session.session, SIGNAL(showError(QString)), this, SLOT(showError(QString)));
-    connect(session.session, SIGNAL(showInfo(QString)), this, SLOT(showInfo(QString)));
-
-    session.session->initiate();
+static gboolean hpa_listener_initiate_authentication_finish(PolkitAgentListener* listener, GAsyncResult* res, GError** error) {
+    return g_task_propagate_boolean(G_TASK(res), error);
 }
 
-bool CPolkitListener::initiateAuthenticationFinish() {
-    std::print("> initiateAuthenticationFinish()\n");
+static void hpa_listener_class_init(HpaListenerClass* klass) {
+    PolkitAgentListenerClass* alc       = POLKIT_AGENT_LISTENER_CLASS(klass);
+    alc->initiate_authentication        = hpa_listener_initiate_authentication;
+    alc->initiate_authentication_finish = hpa_listener_initiate_authentication_finish;
+}
+
+static void hpa_listener_init(HpaListener*) {}
+
+// ----- CPolkitListener -----
+
+CPolkitListener::CPolkitListener() = default;
+
+CPolkitListener::~CPolkitListener() {
+    if (m_session)
+        teardownSession();
+    if (m_registrationHandle)
+        polkit_agent_listener_unregister(m_registrationHandle);
+    if (m_listenerObject)
+        g_object_unref(m_listenerObject);
+    if (m_subject)
+        g_object_unref(m_subject);
+    if (m_selectedUser)
+        g_object_unref(m_selectedUser);
+}
+
+bool CPolkitListener::registerAgent() {
+    GError* error = nullptr;
+    m_subject     = polkit_unix_session_new_for_process_sync(getpid(), nullptr, &error);
+    if (!m_subject) {
+        std::print(stderr, "failed to create subject: {}\n", error ? error->message : "unknown");
+        if (error)
+            g_error_free(error);
+        return false;
+    }
+
+    m_listenerObject = static_cast<HpaListener*>(g_object_new(hpa_listener_get_type(), nullptr));
+
+    m_registrationHandle = polkit_agent_listener_register(POLKIT_AGENT_LISTENER(m_listenerObject), POLKIT_AGENT_REGISTER_FLAGS_NONE, m_subject, "/org/hyprland/PolicyKit1/AuthenticationAgent",
+                                                          nullptr, &error);
+
+    if (!m_registrationHandle) {
+        std::print(stderr, "failed to register agent: {}\n", error ? error->message : "unknown");
+        if (error)
+            g_error_free(error);
+        return false;
+    }
+
+    std::print(stderr, "registered polkit agent\n");
     return true;
 }
 
-void CPolkitListener::cancelAuthentication() {
-    std::print("> cancelAuthentication()\n");
-
-    session.cancelled = true;
-
-    if (session.session) {
-        session.session->disconnect(this);
-        session.session->cancel();
-    }
-
-    finishAuth();
+static void rejectRequest(CPolkitListener::SAuthRequest& req, const char* msg) {
+    std::print(stderr, "> rejecting auth: {}\n", msg);
+    GError* err = g_error_new_literal(G_IO_ERROR, G_IO_ERROR_FAILED, msg);
+    g_task_return_error(req.task, err);
+    g_object_unref(req.task);
+    if (req.gIdentities)
+        g_list_free_full(req.gIdentities, g_object_unref);
 }
 
-void CPolkitListener::request(const QString& request, bool echo) {
-    std::print("> PKS request: {} echo: {}\n", request.toStdString(), echo);
-    if (g_pAgent->authState.qmlIntegration)
-        g_pAgent->authState.qmlIntegration->setPrompt(request, echo);
-}
-
-void CPolkitListener::completed(bool gainedAuthorization) {
-    std::print("> PKS completed: {}\n", gainedAuthorization ? "Auth successful" : "Auth unsuccessful");
-
-    session.gainedAuth = gainedAuthorization;
-
-    if (!gainedAuthorization && g_pAgent->authState.qmlIntegration)
-        g_pAgent->authState.qmlIntegration->setError(tr("Authentication failed"));
-
-    finishAuth();
-}
-
-void CPolkitListener::showError(const QString& text) {
-    std::print("> PKS showError: {}\n", text.toStdString());
-
-    if (g_pAgent->authState.qmlIntegration)
-        g_pAgent->authState.qmlIntegration->setError(text);
-}
-
-void CPolkitListener::showInfo(const QString& text) {
-    std::print("> PKS showInfo: {}\n", text.toStdString());
-    if (g_pAgent->authState.qmlIntegration)
-        g_pAgent->authState.qmlIntegration->setInfo(text);
-}
-
-void CPolkitListener::finishAuth() {
-    if (!session.inProgress) {
-        std::print("> finishAuth: ODD. !session.inProgress\n");
+void CPolkitListener::initiateAuth(SAuthRequest req) {
+    if (m_inProgress) {
+        std::print(stderr, "> queued auth request, queue size {}\n", m_queue.size() + 1);
+        m_queue.push_back(std::move(req));
         return;
     }
 
-    if (!session.gainedAuth && !session.cancelled) {
-        std::print("> finishAuth: Did not gain auth. Reattempting.\n");
-        if (g_pAgent->authState.qmlIntegration) {
-            g_pAgent->authState.qmlIntegration->clearField();
-            g_pAgent->authState.qmlIntegration->blockInput(false);
+    if (req.identities.empty()) {
+        rejectRequest(req, "No identities");
+        return;
+    }
+    if (isSessionLocked()) {
+        rejectRequest(req, "Session is locked");
+        return;
+    }
+
+    m_current = std::move(req);
+
+    const std::string preferred = "unix-user:" + std::to_string(::geteuid());
+    int               idx       = 0;
+    for (size_t i = 0; i < m_current.identities.size(); i++) {
+        if (m_current.identities[i].raw == preferred) {
+            idx = (int)i;
+            break;
         }
-        session.session->deleteLater();
-        reattempt();
+    }
+    if (m_selectedUser)
+        g_object_unref(m_selectedUser);
+    m_selectedUser = static_cast<PolkitIdentity*>(g_object_ref(g_list_nth_data(m_current.gIdentities, idx)));
+
+    m_inProgress = true;
+    m_gainedAuth = false;
+    m_cancelled  = false;
+
+    g_pAgent->beginAuth(m_current);
+
+    startSession();
+}
+
+void CPolkitListener::startSession() {
+    m_session = polkit_agent_session_new(m_selectedUser, m_current.cookie.c_str());
+    g_signal_connect(m_session, "request", G_CALLBACK(onRequestStatic), this);
+    g_signal_connect(m_session, "show-error", G_CALLBACK(onShowErrorStatic), this);
+    g_signal_connect(m_session, "show-info", G_CALLBACK(onShowInfoStatic), this);
+    g_signal_connect(m_session, "completed", G_CALLBACK(onCompletedStatic), this);
+    polkit_agent_session_initiate(m_session);
+}
+
+void CPolkitListener::teardownSession() {
+    if (!m_session)
+        return;
+    g_signal_handlers_disconnect_by_data(m_session, this);
+    g_object_unref(m_session);
+    m_session = nullptr;
+}
+
+void CPolkitListener::completeCurrent(bool gainedAuth, bool cancelled) {
+    if (!m_inProgress)
+        return;
+
+    if (!gainedAuth && !cancelled) {
+        // PAM said no but user didn't cancel: clear the field, restart session for retry.
+        std::print(stderr, "> auth failed, retrying\n");
+        teardownSession();
+        startSession();
         return;
     }
 
-    std::print("> finishAuth: {}, cleaning up.\n", session.cancelled ? "Cancelled" : "Gained auth");
+    std::print(stderr, "> auth {}\n", gainedAuth ? "succeeded" : "cancelled");
 
-    session.inProgress = false;
+    m_inProgress = false;
+    m_gainedAuth = gainedAuth;
+    m_cancelled  = cancelled;
 
-    if (session.session) {
-        session.session->result()->setCompleted();
-        session.session->deleteLater();
-    } else
-        session.result->setCompleted();
+    teardownSession();
 
-    g_pAgent->resetAuthState();
+    g_task_return_boolean(m_current.task, TRUE);
+    g_object_unref(m_current.task);
+    m_current.task = nullptr;
+
+    if (m_current.gIdentities) {
+        g_list_free_full(m_current.gIdentities, g_object_unref);
+        m_current.gIdentities = nullptr;
+    }
+    if (m_selectedUser) {
+        g_object_unref(m_selectedUser);
+        m_selectedUser = nullptr;
+    }
+
+    g_pAgent->endAuth();
 
     startNextQueued();
 }
 
-void CPolkitListener::submitPassword(const QString& pass) {
-    if (!session.session)
+void CPolkitListener::startNextQueued() {
+    if (m_inProgress || m_queue.empty())
         return;
-
-    session.session->setResponse(pass);
-    if (g_pAgent->authState.qmlIntegration)
-        g_pAgent->authState.qmlIntegration->blockInput(true);
+    SAuthRequest next = std::move(m_queue.front());
+    m_queue.pop_front();
+    initiateAuth(std::move(next));
 }
 
-void CPolkitListener::cancelPending() {
-    if (!session.session)
+void CPolkitListener::submitResponse(const std::string& password) {
+    if (!m_session)
         return;
-
-    session.session->disconnect(this);
-    session.session->cancel();
-
-    session.cancelled = true;
-
-    finishAuth();
+    polkit_agent_session_response(m_session, password.c_str());
 }
 
-bool CPolkitListener::isSessionLocked() const {
-    QDBusInterface iface("org.freedesktop.login1",
-                         "/org/freedesktop/login1/session/auto",
-                         "org.freedesktop.DBus.Properties",
-                         QDBusConnection::systemBus());
-    if (!iface.isValid())
-        return false;
-    QDBusReply<QVariant> reply = iface.call("Get", "org.freedesktop.login1.Session", "LockedHint");
-    if (!reply.isValid())
-        return false;
-    return reply.value().toBool();
+void CPolkitListener::cancelCurrent() {
+    if (!m_inProgress)
+        return;
+    m_cancelled = true;
+    if (m_session) {
+        g_signal_handlers_disconnect_by_data(m_session, this);
+        polkit_agent_session_cancel(m_session);
+    }
+    completeCurrent(false, true);
 }
 
-void CPolkitListener::selectUser(const QString& identityString) {
-    if (!session.inProgress)
+void CPolkitListener::selectIdentity(const std::string& identityString) {
+    if (!m_inProgress)
         return;
 
-    PolkitQt1::Identity newId;
-    for (const auto& id : session.identities) {
-        if (id.toString() == identityString) {
-            newId = id;
+    int idx = -1;
+    for (size_t i = 0; i < m_current.identities.size(); i++) {
+        if (m_current.identities[i].raw == identityString) {
+            idx = (int)i;
             break;
         }
     }
-    if (!newId.isValid() || newId.toString() == session.selectedUser.toString())
+    if (idx < 0)
         return;
 
-    std::print("> selectUser: switching to {}\n", identityString.toStdString());
+    PolkitIdentity* newId = static_cast<PolkitIdentity*>(g_list_nth_data(m_current.gIdentities, idx));
+    if (!newId)
+        return;
+    if (m_selectedUser && polkit_identity_equal(m_selectedUser, newId))
+        return;
 
-    session.selectedUser = newId;
+    if (m_selectedUser)
+        g_object_unref(m_selectedUser);
+    m_selectedUser = static_cast<PolkitIdentity*>(g_object_ref(newId));
 
-    if (session.session) {
-        session.session->disconnect(this);
-        session.session->cancel();
-        session.session->deleteLater();
-        session.session = nullptr;
-    }
+    teardownSession();
+    g_pAgent->onError("");
+    g_pAgent->onInfo("");
+    startSession();
+}
 
-    if (g_pAgent->authState.qmlIntegration) {
-        g_pAgent->authState.qmlIntegration->clearField();
-        g_pAgent->authState.qmlIntegration->blockInput(false);
-    }
+std::string CPolkitListener::selectedIdentity() const {
+    if (!m_selectedUser)
+        return "";
+    gchar*      s   = polkit_identity_to_string(m_selectedUser);
+    std::string out = s ? s : "";
+    g_free(s);
+    return out;
+}
 
-    reattempt();
+void CPolkitListener::onRequestStatic(PolkitAgentSession*, gchar* request, gboolean echoOn, gpointer) {
+    g_pAgent->onRequest(request ? request : "", echoOn);
+}
+
+void CPolkitListener::onShowErrorStatic(PolkitAgentSession*, gchar* text, gpointer) {
+    g_pAgent->onError(text ? text : "");
+}
+
+void CPolkitListener::onShowInfoStatic(PolkitAgentSession*, gchar* text, gpointer) {
+    g_pAgent->onInfo(text ? text : "");
+}
+
+void CPolkitListener::onCompletedStatic(PolkitAgentSession*, gboolean gained, gpointer self) {
+    auto* l = static_cast<CPolkitListener*>(self);
+    if (!gained)
+        g_pAgent->onError("Authentication failed");
+    l->completeCurrent(gained, false);
 }
