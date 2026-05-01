@@ -1,67 +1,94 @@
 #pragma once
 
+#define POLKIT_AGENT_I_KNOW_API_IS_SUBJECT_TO_CHANGE 1
+
+#include <glib.h>
+#include <gio/gio.h>
+#include <polkit/polkit.h>
+#include <polkitagent/polkitagent.h>
+
 #include <deque>
+#include <string>
+#include <vector>
 
-#include <QObject>
-#include <QString>
+// GObject subclass declaration. Defined in PolkitListener.cpp.
+G_BEGIN_DECLS
 
-#include <polkitqt1-agent-listener.h>
-#include <polkitqt1-identity.h>
-#include <polkitqt1-details.h>
-#include <polkitqt1-agent-session.h>
+#define HPA_TYPE_LISTENER (hpa_listener_get_type())
+G_DECLARE_FINAL_TYPE(HpaListener, hpa_listener, HPA, LISTENER, PolkitAgentListener)
 
-class CPolkitListener : public PolkitQt1::Agent::Listener {
-    Q_OBJECT;
-    Q_DISABLE_COPY(CPolkitListener);
+G_END_DECLS
 
+class CPolkitListener {
   public:
-    CPolkitListener(QObject* parent = nullptr);
-    ~CPolkitListener() override {};
-
-    void submitPassword(const QString& pass);
-    void cancelPending();
-    void selectUser(const QString& identityString);
-
-  public Q_SLOTS:
-    void initiateAuthentication(const QString& actionId, const QString& message, const QString& iconName, const PolkitQt1::Details& details, const QString& cookie,
-                                const PolkitQt1::Identity::List& identities, PolkitQt1::Agent::AsyncResult* result) override;
-    bool initiateAuthenticationFinish() override;
-    void cancelAuthentication() override;
-
-    void request(const QString& request, bool echo);
-    void completed(bool gainedAuthorization);
-    void showError(const QString& text);
-    void showInfo(const QString& text);
-
-  private:
-    struct PendingAuth {
-        QString                          actionId;
-        QString                          message;
-        QString                          iconName;
-        QString                          cookie;
-        PolkitQt1::Details               details;
-        PolkitQt1::Identity::List        identities;
-        PolkitQt1::Agent::AsyncResult*   result = nullptr;
+    struct SIdentity {
+        std::string raw;     // e.g. "unix-user:1000"
+        std::string display; // "1000" or "alice"
     };
 
-    struct {
-        bool                           inProgress = false, cancelled = false, gainedAuth = false;
-        QString                        cookie, message, iconName, actionId;
-        PolkitQt1::Details             details;
-        PolkitQt1::Agent::AsyncResult* result = nullptr;
-        PolkitQt1::Identity            selectedUser;
-        PolkitQt1::Identity::List      identities;
-        PolkitQt1::Agent::Session*     session = nullptr;
-    } session;
+    struct SAuthRequest {
+        std::string                actionId;
+        std::string                message;
+        std::string                iconName;
+        std::string                cookie;
+        std::vector<SIdentity>     identities;
+        // raw polkit identity list, kept alive for the session lifetime.
+        GList*                     gIdentities = nullptr;
+        // pending GSimpleAsyncResult callback; resolved on completion.
+        GTask*                     task        = nullptr;
+        // command_line / cmdline / etc. detail value (already stripped from extras).
+        std::string                command;
+        // remaining details for the disclosure section.
+        std::vector<std::pair<std::string, std::string>> details;
+        // vendor / vendor_url polkit annotations.
+        std::string                vendor;
+        std::string                vendorUrl;
+    };
 
-    std::deque<PendingAuth> m_queue;
+    CPolkitListener();
+    ~CPolkitListener();
 
-    void reattempt();
-    void finishAuth();
-    void startAuth(const PendingAuth& req);
+    // Registers our agent with polkitd.
+    bool registerAgent();
+
+    // Called by the GObject vtable on every initiate_authentication.
+    void initiateAuth(SAuthRequest req);
+
+    // User submitted a password via the dialog.
+    void submitResponse(const std::string& password);
+
+    // User cancelled (or session got cancelled externally).
+    void cancelCurrent();
+
+    // Switch identity mid-flow. Cancels current PAM session and starts a new one.
+    void selectIdentity(const std::string& identityString);
+
+    // The active session's selected user, "" if no session.
+    std::string selectedIdentity() const;
+
+  private:
+    void startSession();      // creates PolkitAgentSession for the current request
+    void completeCurrent(bool gainedAuth, bool cancelled);
+    void teardownSession();
     void startNextQueued();
-    bool isSessionLocked() const;
 
-    friend class CAgent;
-    friend class CQMLIntegration;
+    // PolkitAgentSession callbacks (static C trampolines + member impls).
+    static void onRequestStatic(PolkitAgentSession* s, gchar* request, gboolean echoOn, gpointer self);
+    static void onShowErrorStatic(PolkitAgentSession* s, gchar* text, gpointer self);
+    static void onShowInfoStatic(PolkitAgentSession* s, gchar* text, gpointer self);
+    static void onCompletedStatic(PolkitAgentSession* s, gboolean gainedAuth, gpointer self);
+
+    HpaListener*       m_listenerObject  = nullptr;
+    gpointer           m_registrationHandle = nullptr;
+    PolkitSubject*     m_subject         = nullptr;
+
+    PolkitAgentSession* m_session        = nullptr;
+
+    SAuthRequest       m_current;
+    bool               m_inProgress      = false;
+    bool               m_gainedAuth      = false;
+    bool               m_cancelled       = false;
+    PolkitIdentity*    m_selectedUser    = nullptr;
+
+    std::deque<SAuthRequest> m_queue;
 };
