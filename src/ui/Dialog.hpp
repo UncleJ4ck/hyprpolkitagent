@@ -9,6 +9,7 @@
 #include <hyprtoolkit/element/Textbox.hpp>
 #include <hyprtoolkit/element/Button.hpp>
 #include <hyprtoolkit/element/Text.hpp>
+#include <hyprtoolkit/element/Element.hpp>
 
 #include <string>
 
@@ -38,12 +39,17 @@ class CDialog {
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CTextElement>    m_infoLabel;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CButtonElement>  m_revealButton;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CButtonElement>  m_authButton;
+    Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CButtonElement>  m_detailsButton;
+    Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IElement>        m_detailsContainer;
+    Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IElement>        m_detailsParent;
 
-    Hyprutils::Signal::CHyprSignalListener                          m_closeListener;
+    Hyprutils::Signal::CHyprSignalListener m_closeListener;
+    Hyprutils::Signal::CHyprSignalListener m_keyListener;
 
     CPolkitListener::SAuthRequest m_req;
     std::string                   m_currentPassword;
     bool                          m_passwordVisible = false;
     bool                          m_promptEcho      = false;
+    bool                          m_detailsVisible  = false;
     std::string                   m_promptText      = "Password";
 };
