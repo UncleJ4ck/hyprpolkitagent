@@ -1,6 +1,7 @@
 #include "Dialog.hpp"
 
 #include "../core/Agent.hpp"
+#include "../config/Config.hpp"
 
 #include <hyprtoolkit/element/Rectangle.hpp>
 #include <hyprtoolkit/element/RowLayout.hpp>
@@ -73,10 +74,12 @@ void CDialog::setError(const std::string& text) {
 }
 
 void CDialog::build() {
+    const auto& cfg = g_pConfigManager->get();
+
     m_window = CWindowBuilder::begin()
-                   ->preferredSize({520, 400})
+                   ->preferredSize({cfg.windowWidth, cfg.windowHeight})
                    ->minSize({480, 300})
-                   ->maxSize({600, 620})
+                   ->maxSize({700, 700})
                    ->appTitle("Authentication Required")
                    ->appClass("hyprpolkitagent")
                    ->commence();
@@ -101,9 +104,10 @@ void CDialog::build() {
             ->color([] { return g_pAgent->backend()->getPalette()->m_colors.background; })
             ->commence());
 
-    // Outer column — 88 % width, centered
+    // Outer column — 88 % width, centered, 10 px gap between children
     auto outer = CColumnLayoutBuilder::begin()
                      ->size({CDynamicSize::HT_SIZE_PERCENT, CDynamicSize::HT_SIZE_PERCENT, {0.88F, 1.F}})
+                     ->gap(10)
                      ->commence();
     outer->setMargin(16);
     outer->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
@@ -111,7 +115,7 @@ void CDialog::build() {
     m_window->m_rootElement->addChild(outer);
 
     // ── Icon ─────────────────────────────────────────────────────────────────
-    {
+    if (cfg.showIcon) {
         const char* iconName = m_req.iconName.empty() ? "dialog-password" : m_req.iconName.c_str();
         auto        iconDesc = m_backend->systemIcons()->lookupIcon(iconName);
         if (!iconDesc || !iconDesc->exists())
@@ -122,7 +126,8 @@ void CDialog::build() {
             wrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
             wrap->addChild(CImageBuilder::begin()
                                ->icon(iconDesc)
-                               ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE, {48, 48}})
+                               ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
+                                       {(double)cfg.iconSize, (double)cfg.iconSize}})
                                ->commence());
             outer->addChild(wrap);
         }
@@ -171,7 +176,7 @@ void CDialog::build() {
             const std::string display = m_req.identities.empty() ? "" : m_req.identities[0].display;
             wrap->addChild(CTextBuilder::begin()
                                ->text(std::string{"for "} + display)
-                               ->color([] { return g_pAgent->backend()->getPalette()->m_colors.text.darken(0.3); })
+                               ->color([] { return g_pAgent->backend()->getPalette()->m_colors.accent; })
                                ->commence());
         }
         outer->addChild(wrap);
@@ -201,9 +206,9 @@ void CDialog::build() {
 
         auto box = CRectangleBuilder::begin()
                        ->color([] { return g_pAgent->backend()->getPalette()->m_colors.base; })
-                       ->borderColor([] { return g_pAgent->backend()->getPalette()->m_colors.text.darken(0.6); })
-                       ->borderThickness(1)
-                       ->rounding(8)
+                       ->borderColor([] { return g_pAgent->backend()->getPalette()->m_colors.text.darken(0.55); })
+                       ->borderThickness(g_pConfigManager->get().borderSize)
+                       ->rounding(g_pConfigManager->get().rounding)
                        ->size({CDynamicSize::HT_SIZE_AUTO, CDynamicSize::HT_SIZE_AUTO, {0, 0}})
                        ->commence();
         box->setMargin(6);
@@ -218,14 +223,15 @@ void CDialog::build() {
 
     // ── Password row ──────────────────────────────────────────────────────────
     {
-        auto pwRow = CRowLayoutBuilder::begin()->commence();
+        auto pwRow = CRowLayoutBuilder::begin()->gap(4)->commence();
         pwRow->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
         pwRow->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
 
         m_passwordField = CTextboxBuilder::begin()
                               ->placeholder(std::string{m_promptText})
                               ->password(true)
-                              ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE, {340, 34}})
+                              ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
+                                      {(double)cfg.passwordFieldWidth, 34.0}})
                               ->onTextEdited([this](CSharedPointer<CTextboxElement>, const std::string& s) {
                                   m_currentPassword = s;
                                   if (!s.empty() && m_errorLabel)
@@ -276,7 +282,7 @@ void CDialog::build() {
 
     // ── Action buttons ────────────────────────────────────────────────────────
     {
-        auto btnRow = CRowLayoutBuilder::begin()->commence();
+        auto btnRow = CRowLayoutBuilder::begin()->gap(16)->commence();
         btnRow->setMargin(8);
         btnRow->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
         btnRow->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
@@ -298,8 +304,8 @@ void CDialog::build() {
         outer->addChild(btnRow);
     }
 
-    // ── Show details (only if there are details to show) ─────────────────────
-    if (!m_req.details.empty()) {
+    // ── Show details (only if there are details and user hasn't disabled it) ──
+    if (cfg.showDetails && !m_req.details.empty()) {
         auto detailsWrap = CRowLayoutBuilder::begin()->commence();
         detailsWrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
         detailsWrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
@@ -307,6 +313,7 @@ void CDialog::build() {
         m_detailsButton = CButtonBuilder::begin()
                               ->label(std::string{"Show details"})
                               ->noBorder(true)
+                              ->noBg(true)
                               ->onMainClick([this](CSharedPointer<CButtonElement>) {
                                   m_detailsVisible = !m_detailsVisible;
                                   if (m_detailsVisible)

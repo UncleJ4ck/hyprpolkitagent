@@ -14,6 +14,7 @@ pkg_check_modules(deps REQUIRED IMPORTED_TARGET
     hyprutils
     hyprtoolkit
     hyprgraphics
+    hyprlang
     pixman-1
     libdrm
     sdbus-c++>=2
@@ -24,6 +25,8 @@ pkg_check_modules(deps REQUIRED IMPORTED_TARGET
 
 add_executable(hyprpolkitagent
     src/main.cpp
+    src/config/Config.cpp
+    src/config/Config.hpp
     src/core/Agent.cpp
     src/core/Agent.hpp
     src/core/PolkitListener.cpp
