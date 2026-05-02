@@ -5,6 +5,7 @@
 #include "Agent.hpp"
 
 #include <print>
+#include <pwd.h>
 #include <unistd.h>
 
 #include <sdbus-c++/sdbus-c++.h>
@@ -49,8 +50,13 @@ static void hpa_listener_initiate_authentication(PolkitAgentListener* listener, 
         std::string     raw = str ? str : "";
         g_free(str);
         std::string display = raw;
-        if (raw.starts_with("unix-user:"))
+        if (raw.starts_with("unix-user:")) {
             display = raw.substr(10);
+            try {
+                if (auto* pw = getpwuid((uid_t)std::stoul(display)))
+                    display = pw->pw_name;
+            } catch (...) {}
+        }
         req.identities.push_back({raw, display});
         req.gIdentities = g_list_append(req.gIdentities, g_object_ref(id));
     }
@@ -62,6 +68,16 @@ static void hpa_listener_initiate_authentication(PolkitAgentListener* listener, 
         if (!cmd)
             cmd = polkit_details_lookup(details, "command");
         req.command = cmd ? cmd : "";
+
+        // Many actions embed the command in the message as "to run '/path' as ...".
+        if (req.command.empty() && !req.message.empty()) {
+            auto s = req.message.find("to run '");
+            if (s != std::string::npos) {
+                auto e = req.message.find('\'', s + 8);
+                if (e != std::string::npos)
+                    req.command = req.message.substr(s + 8, e - s - 8);
+            }
+        }
 
         const gchar* v;
         v             = polkit_details_lookup(details, "polkit.vendor");
@@ -102,9 +118,15 @@ static void hpa_listener_init(HpaListener*) {}
 
 // ----- CPolkitListener -----
 
+static void rejectRequest(CPolkitListener::SAuthRequest& req, const char* msg);
+
 CPolkitListener::CPolkitListener() = default;
 
 CPolkitListener::~CPolkitListener() {
+    while (!m_queue.empty()) {
+        rejectRequest(m_queue.front(), "Agent shutting down");
+        m_queue.pop_front();
+    }
     if (m_session)
         teardownSession();
     if (m_registrationHandle)
