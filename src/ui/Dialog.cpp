@@ -75,27 +75,23 @@ void CDialog::setError(const std::string& text) {
 }
 
 static std::string gtkIconTheme() {
-    const char* xdg = getenv("XDG_CONFIG_HOME");
-    std::string cfg = xdg ? xdg : (std::string{getenv("HOME")} + "/.config");
-    if (FILE* f = fopen((cfg + "/gtk-3.0/settings.ini").c_str(), "r")) {
-        char line[256];
-        while (fgets(line, sizeof(line), f)) {
-            std::string s{line};
-            auto        eq = s.find('=');
-            if (s.find("gtk-icon-theme-name") != std::string::npos && eq != std::string::npos) {
-                std::string t = s.substr(eq + 1);
-                while (!t.empty() && (t.back() == '\n' || t.back() == '\r' || t.back() == ' '))
-                    t.pop_back();
-                fclose(f);
-                return t;
-            }
-        }
-        fclose(f);
+    const char* xdg  = getenv("XDG_CONFIG_HOME");
+    const char* home = getenv("HOME");
+    if (!xdg && !home)
+        return {};
+    std::string cfg = xdg ? std::string{xdg} : std::string{home} + "/.config";
+    std::ifstream f(cfg + "/gtk-3.0/settings.ini");
+    for (std::string line; std::getline(f, line);) {
+        auto eq = line.find('=');
+        if (line.find("gtk-icon-theme-name") != std::string::npos && eq != std::string::npos)
+            return line.substr(eq + 1);
     }
     return {};
 }
 
-// Plasma SVGs use CSS `color:` for palette classes; librsvg needs `fill:`.
+// Load icon bytes: searches per-theme (PNG then SVG) before falling back to other themes.
+// Plasma SVGs use CSS `color:` for currentColor fills; patches to `fill:` so librsvg reads them,
+// then tints Text-class elements with the theme's NeutralText (accent) colour.
 static std::vector<uint8_t> loadIconData(const std::string& iconName) {
     namespace fs = std::filesystem;
 
@@ -106,34 +102,58 @@ static std::vector<uint8_t> loadIconData(const std::string& iconName) {
     for (const char* t : {"hicolor", "AdwaitaLegacy", "Papirus-Dark"})
         themes.push_back(t);
 
-    auto findPath = [&](bool png) -> std::string {
-        const char* ext = png ? ".png" : ".svg";
+    // Per-theme search: PNG then SVG, so the user's theme SVG wins over a
+    // generic PNG from a fallback theme (fixes cross-theme key vs padlock confusion).
+    auto findPath = [&]() -> std::string {
         for (const auto& t : themes)
-            for (const char* sz : {"48x48", "64x64", "32x32", "24x24", "22x22"})
-                for (const char* cat : {"actions", "status", "apps", "legacy", "categories"}) {
-                    std::string p = "/usr/share/icons/" + t + "/" + sz + "/" + cat + "/" + iconName + ext;
-                    if (fs::exists(p))
-                        return p;
-                }
+            for (const char* sz : {"48x48", "64x64", "32x32", "scalable", "24x24", "22x22"})
+                for (const char* cat : {"actions", "status", "apps", "legacy", "categories"})
+                    for (const char* ext : {".png", ".svg"}) {
+                        std::string p = "/usr/share/icons/" + t + "/" + sz + "/" + cat + "/" + iconName + ext;
+                        if (fs::exists(p))
+                            return p;
+                    }
         return {};
     };
 
-    // Prefer PNG — guaranteed to load. Fall back to SVG with CSS patch.
-    std::string path = findPath(true);
-    if (!path.empty()) {
+    std::string path = findPath();
+    if (path.empty())
+        return {};
+
+    if (!path.ends_with(".svg")) {
         std::ifstream f(path, std::ios::binary);
         return {std::istreambuf_iterator<char>(f), {}};
     }
 
-    path = findPath(false);
-    if (path.empty())
-        return {};
-
     std::ifstream f(path);
     std::string   svg((std::istreambuf_iterator<char>(f)), {});
-    // Replace CSS `color:` with `fill:` so librsvg applies palette colours.
+
+    // Extract CSS palette colour values from the style block.
+    auto cssColor = [&](const std::string& cls) -> std::string {
+        std::string needle = cls + " { color:";
+        auto        pos    = svg.find(needle);
+        if (pos == std::string::npos)
+            return {};
+        pos += needle.size();
+        while (pos < svg.size() && svg[pos] == ' ')
+            pos++;
+        auto end = svg.find(';', pos);
+        return end != std::string::npos ? svg.substr(pos, end - pos) : std::string{};
+    };
+
+    // Tint Text-class shapes with the NeutralText (accent) colour so the icon
+    // matches the matugen palette instead of rendering in flat grey.
+    std::string textColor   = cssColor(".ColorScheme-Text");
+    std::string accentColor = cssColor(".ColorScheme-NeutralText");
+    if (!textColor.empty() && !accentColor.empty()) {
+        for (size_t pos = 0; (pos = svg.find(textColor, pos)) != std::string::npos;)
+            svg.replace(pos, textColor.size(), accentColor), pos += accentColor.size();
+    }
+
+    // Fix CSS `color:` → `fill:` so librsvg resolves currentColor correctly.
     for (size_t pos = 0; (pos = svg.find("color:", pos)) != std::string::npos;)
         svg.replace(pos, 6, "fill:"), pos += 5;
+
     return {svg.begin(), svg.end()};
 }
 
@@ -180,13 +200,18 @@ void CDialog::build() {
 
     // ── Icon ─────────────────────────────────────────────────────────────────
     if (cfg.showIcon) {
-        const std::string iconName = m_req.iconName.empty() ? "dialog-password" : m_req.iconName;
+        // dialog-password is a key in Papirus; prefer a padlock for auth UI.
+        std::string iconName = m_req.iconName.empty() ? "object-locked" : m_req.iconName;
+        if (iconName == "dialog-password")
+            iconName = "object-locked";
 
         auto wrap = CRowLayoutBuilder::begin()->commence();
         wrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
         wrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
 
         auto bytes = loadIconData(iconName);
+        if (bytes.empty())
+            bytes = loadIconData("changes-prevent");
         if (bytes.empty())
             bytes = loadIconData("system-lock-screen");
         if (!bytes.empty()) {
@@ -307,6 +332,8 @@ void CDialog::build() {
                               ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
                                       {(double)cfg.passwordFieldWidth, 34.0}})
                               ->onTextEdited([this](CSharedPointer<CTextboxElement>, const std::string& s) {
+                                  if (s == "\x01")
+                                      return; // sentinel — not real user input
                                   m_currentPassword = s;
                                   if (!s.empty() && m_errorLabel)
                                       m_errorLabel->rebuild()->text(std::string{""})->commence();
@@ -319,10 +346,9 @@ void CDialog::build() {
                              ->noBorder(true)
                              ->onMainClick([this](CSharedPointer<CButtonElement>) {
                                  m_passwordVisible = !m_passwordVisible;
-                                 // Force updateLabel (only triggers on text change) via sentinel swap
-                                 const std::string pw = std::string{m_passwordField->currentText()};
+                                 // Force updateLabel via sentinel then restore tracked password.
                                  m_passwordField->rebuild()->defaultText(std::string{"\x01"})->password(!m_passwordVisible)->commence();
-                                 m_passwordField->rebuild()->defaultText(std::string{pw})->password(!m_passwordVisible)->commence();
+                                 m_passwordField->rebuild()->defaultText(std::string{m_currentPassword})->password(!m_passwordVisible)->commence();
                                  m_revealButton->rebuild()->label(std::string{m_passwordVisible ? "Hide" : "Show"})->commence();
                                  m_passwordField->focus();
                              })
