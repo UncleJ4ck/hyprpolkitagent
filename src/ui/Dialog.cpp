@@ -90,8 +90,8 @@ static std::string gtkIconTheme() {
 }
 
 // Load icon bytes: searches per-theme (PNG then SVG) before falling back to other themes.
-// Plasma SVGs use CSS `color:` for currentColor fills; patches to `fill:` so librsvg reads them,
-// then tints Text-class elements with the theme's NeutralText (accent) colour.
+// Plasma SVGs use CSS `color:` for currentColor fills; resolves them explicitly so librsvg
+// renders the correct colours regardless of currentColor cascade quirks.
 static std::vector<uint8_t> loadIconData(const std::string& iconName) {
     namespace fs = std::filesystem;
 
@@ -128,29 +128,36 @@ static std::vector<uint8_t> loadIconData(const std::string& iconName) {
     std::ifstream f(path);
     std::string   svg((std::istreambuf_iterator<char>(f)), {});
 
-    // Extract CSS palette colour values from the style block.
-    auto cssColor = [&](const std::string& cls) -> std::string {
-        std::string needle = cls + " { color:";
-        auto        pos    = svg.find(needle);
-        if (pos == std::string::npos)
+    // Extract CSS palette colour for a given class. Works for both one-liner and
+    // multiline block selectors (finds `color:` within the next `}` after the class).
+    auto cssColorVal = [&](const std::string& cls) -> std::string {
+        auto clsPos = svg.find(cls);
+        if (clsPos == std::string::npos)
             return {};
-        pos += needle.size();
-        while (pos < svg.size() && svg[pos] == ' ')
-            pos++;
-        auto end = svg.find(';', pos);
-        return end != std::string::npos ? svg.substr(pos, end - pos) : std::string{};
+        auto blockEnd = svg.find('}', clsPos);
+        if (blockEnd == std::string::npos)
+            return {};
+        auto colorPos = svg.find("color:", clsPos);
+        if (colorPos == std::string::npos || colorPos >= blockEnd)
+            return {};
+        colorPos += 6;
+        while (colorPos < svg.size() && svg[colorPos] == ' ')
+            colorPos++;
+        auto colorEnd = svg.find_first_of(";} \t\n\r", colorPos);
+        if (colorEnd == std::string::npos || colorEnd > blockEnd)
+            return {};
+        return svg.substr(colorPos, colorEnd - colorPos);
     };
 
-    // Tint Text-class shapes with the NeutralText (accent) colour so the icon
-    // matches the matugen palette instead of rendering in flat grey.
-    std::string textColor   = cssColor(".ColorScheme-Text");
-    std::string accentColor = cssColor(".ColorScheme-NeutralText");
-    if (!textColor.empty() && !accentColor.empty()) {
-        for (size_t pos = 0; (pos = svg.find(textColor, pos)) != std::string::npos;)
-            svg.replace(pos, textColor.size(), accentColor), pos += accentColor.size();
+    // Resolve currentColor to the explicit text colour so librsvg renders it
+    // correctly when displayed on a coloured background.
+    std::string textColor = cssColorVal(".ColorScheme-Text");
+    if (!textColor.empty()) {
+        for (size_t pos = 0; (pos = svg.find("currentColor", pos)) != std::string::npos;)
+            svg.replace(pos, 12, textColor), pos += textColor.size();
     }
 
-    // Fix CSS `color:` → `fill:` so librsvg resolves currentColor correctly.
+    // Fix remaining CSS `color:` → `fill:` so librsvg applies palette rules.
     for (size_t pos = 0; (pos = svg.find("color:", pos)) != std::string::npos;)
         svg.replace(pos, 6, "fill:"), pos += 5;
 
@@ -205,21 +212,34 @@ void CDialog::build() {
         if (iconName == "dialog-password")
             iconName = "object-locked";
 
-        auto wrap = CRowLayoutBuilder::begin()->commence();
-        wrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
-        wrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
-
         auto bytes = loadIconData(iconName);
         if (bytes.empty())
             bytes = loadIconData("changes-prevent");
         if (bytes.empty())
             bytes = loadIconData("system-lock-screen");
         if (!bytes.empty()) {
-            wrap->addChild(CImageBuilder::begin()
-                               ->data(std::move(bytes))
-                               ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
-                                       {(double)cfg.iconSize, (double)cfg.iconSize}})
-                               ->commence());
+            auto wrap = CRowLayoutBuilder::begin()->commence();
+            wrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
+            wrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
+
+            // Accent-coloured rounded square behind the icon (matches reference design).
+            const int bgSize = cfg.iconSize + 16;
+            auto      bg     = CRectangleBuilder::begin()
+                              ->color([] { return g_pAgent->backend()->getPalette()->m_colors.accent; })
+                              ->rounding(12)
+                              ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
+                                      {(double)bgSize, (double)bgSize}})
+                              ->commence();
+
+            auto imgEl = CImageBuilder::begin()
+                             ->data(std::move(bytes))
+                             ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
+                                     {(double)cfg.iconSize, (double)cfg.iconSize}})
+                             ->commence();
+            imgEl->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
+            imgEl->setPositionFlag(IElement::HT_POSITION_FLAG_CENTER, true);
+            bg->addChild(imgEl);
+            wrap->addChild(bg);
             outer->addChild(wrap);
         }
     }
