@@ -8,13 +8,14 @@
 #include <hyprtoolkit/element/ColumnLayout.hpp>
 #include <hyprtoolkit/element/Image.hpp>
 #include <hyprtoolkit/element/Combobox.hpp>
-#include <hyprtoolkit/system/Icons.hpp>
 #include <hyprtoolkit/types/SizeType.hpp>
 #include <hyprtoolkit/types/FontTypes.hpp>
 #include <hyprtoolkit/palette/Color.hpp>
 #include <hyprtoolkit/core/Input.hpp>
 
 #include <xkbcommon/xkbcommon-keysyms.h>
+#include <filesystem>
+#include <fstream>
 #include <print>
 
 using namespace Hyprutils::Memory;
@@ -73,6 +74,69 @@ void CDialog::setError(const std::string& text) {
         m_errorLabel->rebuild()->text(std::string{text})->commence();
 }
 
+static std::string gtkIconTheme() {
+    const char* xdg = getenv("XDG_CONFIG_HOME");
+    std::string cfg = xdg ? xdg : (std::string{getenv("HOME")} + "/.config");
+    if (FILE* f = fopen((cfg + "/gtk-3.0/settings.ini").c_str(), "r")) {
+        char line[256];
+        while (fgets(line, sizeof(line), f)) {
+            std::string s{line};
+            auto        eq = s.find('=');
+            if (s.find("gtk-icon-theme-name") != std::string::npos && eq != std::string::npos) {
+                std::string t = s.substr(eq + 1);
+                while (!t.empty() && (t.back() == '\n' || t.back() == '\r' || t.back() == ' '))
+                    t.pop_back();
+                fclose(f);
+                return t;
+            }
+        }
+        fclose(f);
+    }
+    return {};
+}
+
+// Plasma SVGs use CSS `color:` for palette classes; librsvg needs `fill:`.
+static std::vector<uint8_t> loadIconData(const std::string& iconName) {
+    namespace fs = std::filesystem;
+
+    std::string              theme = gtkIconTheme();
+    std::vector<std::string> themes;
+    if (!theme.empty())
+        themes.push_back(theme);
+    for (const char* t : {"hicolor", "AdwaitaLegacy", "Papirus-Dark"})
+        themes.push_back(t);
+
+    auto findPath = [&](bool png) -> std::string {
+        const char* ext = png ? ".png" : ".svg";
+        for (const auto& t : themes)
+            for (const char* sz : {"48x48", "64x64", "32x32", "24x24", "22x22"})
+                for (const char* cat : {"actions", "status", "apps", "legacy", "categories"}) {
+                    std::string p = "/usr/share/icons/" + t + "/" + sz + "/" + cat + "/" + iconName + ext;
+                    if (fs::exists(p))
+                        return p;
+                }
+        return {};
+    };
+
+    // Prefer PNG — guaranteed to load. Fall back to SVG with CSS patch.
+    std::string path = findPath(true);
+    if (!path.empty()) {
+        std::ifstream f(path, std::ios::binary);
+        return {std::istreambuf_iterator<char>(f), {}};
+    }
+
+    path = findPath(false);
+    if (path.empty())
+        return {};
+
+    std::ifstream f(path);
+    std::string   svg((std::istreambuf_iterator<char>(f)), {});
+    // Replace CSS `color:` with `fill:` so librsvg applies palette colours.
+    for (size_t pos = 0; (pos = svg.find("color:", pos)) != std::string::npos;)
+        svg.replace(pos, 6, "fill:"), pos += 5;
+    return {svg.begin(), svg.end()};
+}
+
 void CDialog::build() {
     const auto& cfg = g_pConfigManager->get();
 
@@ -116,16 +180,18 @@ void CDialog::build() {
 
     // ── Icon ─────────────────────────────────────────────────────────────────
     if (cfg.showIcon) {
-        const char* iconName = m_req.iconName.empty() ? "dialog-password" : m_req.iconName.c_str();
-        auto        iconDesc = m_backend->systemIcons()->lookupIcon(iconName);
-        if (!iconDesc || !iconDesc->exists())
-            iconDesc = m_backend->systemIcons()->lookupIcon("system-lock-screen");
-        if (iconDesc && iconDesc->exists()) {
-            auto wrap = CRowLayoutBuilder::begin()->commence();
-            wrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
-            wrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
+        const std::string iconName = m_req.iconName.empty() ? "dialog-password" : m_req.iconName;
+
+        auto wrap = CRowLayoutBuilder::begin()->commence();
+        wrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
+        wrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
+
+        auto bytes = loadIconData(iconName);
+        if (bytes.empty())
+            bytes = loadIconData("system-lock-screen");
+        if (!bytes.empty()) {
             wrap->addChild(CImageBuilder::begin()
-                               ->icon(iconDesc)
+                               ->data(std::move(bytes))
                                ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
                                        {(double)cfg.iconSize, (double)cfg.iconSize}})
                                ->commence());
@@ -176,7 +242,7 @@ void CDialog::build() {
             const std::string display = m_req.identities.empty() ? "" : m_req.identities[0].display;
             wrap->addChild(CTextBuilder::begin()
                                ->text(std::string{"for "} + display)
-                               ->color([] { return g_pAgent->backend()->getPalette()->m_colors.accent; })
+                               ->color([] { return g_pAgent->backend()->getPalette()->m_colors.text.darken(0.3); })
                                ->commence());
         }
         outer->addChild(wrap);
@@ -193,6 +259,7 @@ void CDialog::build() {
         wrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
         wrap->addChild(CTextBuilder::begin()
                            ->text(std::string{msg})
+                           ->clampSize({(double)cfg.passwordFieldWidth, -1.0})
                            ->color([] { return g_pAgent->backend()->getPalette()->m_colors.text; })
                            ->commence());
         outer->addChild(wrap);
@@ -204,17 +271,24 @@ void CDialog::build() {
         wrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
         wrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
 
+        // Truncate long commands so they don't overflow the window
+        std::string cmd = m_req.command;
+        constexpr size_t MAX_CMD = 55;
+        if (cmd.size() > MAX_CMD)
+            cmd = cmd.substr(0, MAX_CMD - 3) + "...";
+
         auto box = CRectangleBuilder::begin()
                        ->color([] { return g_pAgent->backend()->getPalette()->m_colors.base; })
                        ->borderColor([] { return g_pAgent->backend()->getPalette()->m_colors.text.darken(0.55); })
                        ->borderThickness(g_pConfigManager->get().borderSize)
                        ->rounding(g_pConfigManager->get().rounding)
-                       ->size({CDynamicSize::HT_SIZE_AUTO, CDynamicSize::HT_SIZE_AUTO, {0, 0}})
+                       ->size(CDynamicSize{CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_AUTO, Vector2D{(double)cfg.passwordFieldWidth, 0.0}})
                        ->commence();
         box->setMargin(6);
         box->addChild(CTextBuilder::begin()
-                          ->text(std::string{m_req.command})
+                          ->text(std::move(cmd))
                           ->fontFamily(std::string{"monospace"})
+                          ->align(HT_FONT_ALIGN_CENTER)
                           ->color([] { return g_pAgent->backend()->getPalette()->m_colors.text; })
                           ->commence());
         wrap->addChild(box);
