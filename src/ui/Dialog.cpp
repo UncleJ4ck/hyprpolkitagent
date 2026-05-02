@@ -222,23 +222,23 @@ void CDialog::build() {
             wrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
             wrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
 
-            // Accent-coloured rounded square behind the icon (matches reference design).
-            const int bgSize = cfg.iconSize + 16;
-            auto      bg     = CRectangleBuilder::begin()
-                              ->color([] { return g_pAgent->backend()->getPalette()->m_colors.accent; })
-                              ->rounding(12)
-                              ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
-                                      {(double)bgSize, (double)bgSize}})
-                              ->commence();
-
-            auto imgEl = CImageBuilder::begin()
+            // Orange rounded square behind the icon (matches reference design).
+            // setMargin on a Rectangle = internal padding, so iconSize image is
+            // centred inside bgSize square without needing position flags on the child.
+            const int bgSize  = cfg.iconSize + 16;
+            const int padding = (bgSize - cfg.iconSize) / 2;
+            auto      bg      = CRectangleBuilder::begin()
+                          ->color([] { return CHyprColor{0.91F, 0.33F, 0.05F, 1.F}; })
+                          ->rounding(12)
+                          ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
+                                  {(double)bgSize, (double)bgSize}})
+                          ->commence();
+            bg->setMargin(padding);
+            bg->addChild(CImageBuilder::begin()
                              ->data(std::move(bytes))
                              ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
                                      {(double)cfg.iconSize, (double)cfg.iconSize}})
-                             ->commence();
-            imgEl->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
-            imgEl->setPositionFlag(IElement::HT_POSITION_FLAG_CENTER, true);
-            bg->addChild(imgEl);
+                             ->commence());
             wrap->addChild(bg);
             outer->addChild(wrap);
         }
