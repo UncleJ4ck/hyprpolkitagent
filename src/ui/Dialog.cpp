@@ -215,33 +215,34 @@ void CDialog::build() {
         if (bytes.empty())
             bytes = loadIconData("system-lock-screen");
         if (!bytes.empty()) {
-            const int bgSize  = cfg.iconSize + 16;
-            const int padding = (bgSize - cfg.iconSize) / 2;
+            const int bgSize = cfg.iconSize + 16;
 
-            // wrap has explicit height so the outer column sees bgSize regardless
-            // of positioningDependsOnChild() propagation from the bg Rectangle.
-            auto wrap = CRowLayoutBuilder::begin()
-                            ->size({CDynamicSize::HT_SIZE_AUTO, CDynamicSize::HT_SIZE_ABSOLUTE, {0.0, (double)bgSize}})
-                            ->commence();
+            // Inject a background rect directly into the SVG so the composite
+            // (coloured rounded square + padlock) is a single CImageElement.
+            // Using a CRectangleElement as parent triggers positioningDependsOnChild
+            // which inflates the outer column height and pushes buttons off-screen.
+            if (bytes[0] == '<') {
+                const auto     ac  = g_pAgent->backend()->getPalette()->m_colors.accent;
+                const uint32_t hex = ac.getAsHex(); // AR32: 0xAARRGGBB
+                constexpr const char* d = "0123456789abcdef";
+                auto b2h = [d](uint8_t b) -> std::string { return {d[b >> 4], d[b & 0xF]}; };
+                const std::string col = "#" + b2h((hex >> 16) & 0xFF) + b2h((hex >> 8) & 0xFF) + b2h(hex & 0xFF);
+                const std::string rct = "<rect width=\"100%\" height=\"100%\" rx=\"12\" ry=\"12\" fill=\"" + col + "\"/>";
+                std::string svg(bytes.begin(), bytes.end());
+                const auto svgEnd = svg.find('>');
+                if (svgEnd != std::string::npos)
+                    svg.insert(svgEnd + 1, rct);
+                bytes.assign(svg.begin(), svg.end());
+            }
+
+            auto wrap = CRowLayoutBuilder::begin()->commence();
             wrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
             wrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
-
-            auto bg = CRectangleBuilder::begin()
-                          ->color([] { return g_pAgent->backend()->getPalette()->m_colors.accent; })
-                          ->rounding(12)
-                          ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
-                                  {(double)bgSize, (double)bgSize}})
-                          ->commence();
-
-            auto img = CImageBuilder::begin()
-                           ->data(std::move(bytes))
-                           ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
-                                   {(double)cfg.iconSize, (double)cfg.iconSize}})
-                           ->commence();
-            img->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
-            img->setAbsolutePosition({(double)padding, (double)padding});
-            bg->addChild(img);
-            wrap->addChild(bg);
+            wrap->addChild(CImageBuilder::begin()
+                               ->data(std::move(bytes))
+                               ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
+                                       {(double)bgSize, (double)bgSize}})
+                               ->commence());
             outer->addChild(wrap);
         }
     }

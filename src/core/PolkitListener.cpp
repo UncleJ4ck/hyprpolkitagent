@@ -91,18 +91,18 @@ static void hpa_listener_initiate_authentication(PolkitAgentListener* listener, 
         }
     }
 
-    // Many actions embed the command in the message as "to run '/path' as ..."
-    // or "to run `/path/` as ..." — runs even when details is NULL.
+    // Many actions embed the command in the message as "to run '/path' as ..." or
+    // "to run `/path` as ...". Polkit mixes quote styles (open ` close ') so match
+    // any quote pair rather than requiring identical open/close characters.
     if (req.command.empty() && !req.message.empty()) {
-        for (char q : {'\'', '`'}) {
-            std::string needle = std::string{"to run "} + q;
-            auto        s      = req.message.find(needle);
-            if (s == std::string::npos)
-                continue;
-            auto e = req.message.find(q, s + needle.size());
-            if (e != std::string::npos) {
-                req.command = req.message.substr(s + needle.size(), e - s - needle.size());
-                break;
+        auto s = req.message.find("to run ");
+        if (s != std::string::npos) {
+            s += 7;
+            if (s < req.message.size() && (req.message[s] == '\'' || req.message[s] == '`')) {
+                ++s;
+                auto e = req.message.find_first_of("'`", s);
+                if (e != std::string::npos)
+                    req.command = req.message.substr(s, e - s);
             }
         }
     }
