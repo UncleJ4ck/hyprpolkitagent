@@ -128,7 +128,33 @@ static std::vector<uint8_t> loadIconData(const std::string& iconName) {
     std::ifstream f(path);
     std::string   svg((std::istreambuf_iterator<char>(f)), {});
 
-    // CSS `color:` → `fill:` so librsvg applies palette rules to SVG elements.
+    // Resolve currentColor to the theme text colour so elements using it render
+    // correctly. The SVG CSS defines the intended colour; we apply it explicitly
+    // because librsvg doesn't inherit currentColor from an external context.
+    auto cssColor = [&](const std::string& cls) -> std::string {
+        auto p = svg.find(cls);
+        if (p == std::string::npos)
+            return {};
+        auto end = svg.find('}', p);
+        if (end == std::string::npos)
+            return {};
+        auto cp = svg.find("color:", p);
+        if (cp == std::string::npos || cp >= end)
+            return {};
+        cp += 6;
+        while (cp < svg.size() && svg[cp] == ' ')
+            cp++;
+        auto ce = svg.find_first_of(";} \t\n\r", cp);
+        if (ce == std::string::npos || ce > end)
+            return {};
+        return svg.substr(cp, ce - cp);
+    };
+    const std::string textColor = cssColor(".ColorScheme-Text");
+    if (!textColor.empty())
+        for (size_t pos = 0; (pos = svg.find("currentColor", pos)) != std::string::npos;)
+            svg.replace(pos, 12, textColor), pos += textColor.size();
+
+    // color: → fill: so librsvg applies CSS palette rules to SVG paths.
     for (size_t pos = 0; (pos = svg.find("color:", pos)) != std::string::npos;)
         svg.replace(pos, 6, "fill:"), pos += 5;
 
@@ -189,23 +215,33 @@ void CDialog::build() {
         if (bytes.empty())
             bytes = loadIconData("system-lock-screen");
         if (!bytes.empty()) {
-            // SVG icons use currentColor for the padlock body; replace with accent orange
-            // so the icon renders like the QML reference (padlock body = orange).
-            if (bytes[0] == '<') {
-                std::string svgStr(bytes.begin(), bytes.end());
-                for (size_t pos = 0; (pos = svgStr.find("currentColor", pos)) != std::string::npos;)
-                    svgStr.replace(pos, 12, "#E8540D"), pos += 7;
-                bytes.assign(svgStr.begin(), svgStr.end());
-            }
+            const int bgSize  = cfg.iconSize + 16;
+            const int padding = (bgSize - cfg.iconSize) / 2;
 
-            auto wrap = CRowLayoutBuilder::begin()->commence();
+            // wrap has explicit height so the outer column sees bgSize regardless
+            // of positioningDependsOnChild() propagation from the bg Rectangle.
+            auto wrap = CRowLayoutBuilder::begin()
+                            ->size({CDynamicSize::HT_SIZE_AUTO, CDynamicSize::HT_SIZE_ABSOLUTE, {0.0, (double)bgSize}})
+                            ->commence();
             wrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
             wrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
-            wrap->addChild(CImageBuilder::begin()
-                               ->data(std::move(bytes))
-                               ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
-                                       {(double)(cfg.iconSize + 16), (double)(cfg.iconSize + 16)}})
-                               ->commence());
+
+            auto bg = CRectangleBuilder::begin()
+                          ->color([] { return g_pAgent->backend()->getPalette()->m_colors.accent; })
+                          ->rounding(12)
+                          ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
+                                  {(double)bgSize, (double)bgSize}})
+                          ->commence();
+
+            auto img = CImageBuilder::begin()
+                           ->data(std::move(bytes))
+                           ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
+                                   {(double)cfg.iconSize, (double)cfg.iconSize}})
+                           ->commence();
+            img->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
+            img->setAbsolutePosition({(double)padding, (double)padding});
+            bg->addChild(img);
+            wrap->addChild(bg);
             outer->addChild(wrap);
         }
     }
@@ -290,8 +326,8 @@ void CDialog::build() {
 
         auto box = CRectangleBuilder::begin()
                        ->color([] { return g_pAgent->backend()->getPalette()->m_colors.base; })
-                       ->borderColor([] { return g_pAgent->backend()->getPalette()->m_colors.text.darken(0.55); })
-                       ->borderThickness(g_pConfigManager->get().borderSize)
+                       ->borderColor([] { return g_pAgent->backend()->getPalette()->m_colors.text.darken(0.3); })
+                       ->borderThickness(2)
                        ->rounding(g_pConfigManager->get().rounding)
                        ->size(CDynamicSize{CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_AUTO, Vector2D{(double)cfg.passwordFieldWidth, 0.0}})
                        ->commence();
