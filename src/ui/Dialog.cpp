@@ -128,36 +128,7 @@ static std::vector<uint8_t> loadIconData(const std::string& iconName) {
     std::ifstream f(path);
     std::string   svg((std::istreambuf_iterator<char>(f)), {});
 
-    // Extract CSS palette colour for a given class. Works for both one-liner and
-    // multiline block selectors (finds `color:` within the next `}` after the class).
-    auto cssColorVal = [&](const std::string& cls) -> std::string {
-        auto clsPos = svg.find(cls);
-        if (clsPos == std::string::npos)
-            return {};
-        auto blockEnd = svg.find('}', clsPos);
-        if (blockEnd == std::string::npos)
-            return {};
-        auto colorPos = svg.find("color:", clsPos);
-        if (colorPos == std::string::npos || colorPos >= blockEnd)
-            return {};
-        colorPos += 6;
-        while (colorPos < svg.size() && svg[colorPos] == ' ')
-            colorPos++;
-        auto colorEnd = svg.find_first_of(";} \t\n\r", colorPos);
-        if (colorEnd == std::string::npos || colorEnd > blockEnd)
-            return {};
-        return svg.substr(colorPos, colorEnd - colorPos);
-    };
-
-    // Resolve currentColor to the explicit text colour so librsvg renders it
-    // correctly when displayed on a coloured background.
-    std::string textColor = cssColorVal(".ColorScheme-Text");
-    if (!textColor.empty()) {
-        for (size_t pos = 0; (pos = svg.find("currentColor", pos)) != std::string::npos;)
-            svg.replace(pos, 12, textColor), pos += textColor.size();
-    }
-
-    // Fix remaining CSS `color:` → `fill:` so librsvg applies palette rules.
+    // CSS `color:` → `fill:` so librsvg applies palette rules to SVG elements.
     for (size_t pos = 0; (pos = svg.find("color:", pos)) != std::string::npos;)
         svg.replace(pos, 6, "fill:"), pos += 5;
 
@@ -169,7 +140,7 @@ void CDialog::build() {
 
     m_window = CWindowBuilder::begin()
                    ->preferredSize({cfg.windowWidth, cfg.windowHeight})
-                   ->minSize({480, 300})
+                   ->minSize({480, 380})
                    ->maxSize({700, 700})
                    ->appTitle("Authentication Required")
                    ->appClass("hyprpolkitagent")
@@ -195,10 +166,10 @@ void CDialog::build() {
             ->color([] { return g_pAgent->backend()->getPalette()->m_colors.background; })
             ->commence());
 
-    // Outer column — 88 % width, centered, 10 px gap between children
+    // Outer column — 88 % width, centered, 14 px gap between children
     auto outer = CColumnLayoutBuilder::begin()
                      ->size({CDynamicSize::HT_SIZE_PERCENT, CDynamicSize::HT_SIZE_PERCENT, {0.88F, 1.F}})
-                     ->gap(10)
+                     ->gap(14)
                      ->commence();
     outer->setMargin(16);
     outer->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
@@ -218,34 +189,23 @@ void CDialog::build() {
         if (bytes.empty())
             bytes = loadIconData("system-lock-screen");
         if (!bytes.empty()) {
+            // SVG icons use currentColor for the padlock body; replace with accent orange
+            // so the icon renders like the QML reference (padlock body = orange).
+            if (bytes[0] == '<') {
+                std::string svgStr(bytes.begin(), bytes.end());
+                for (size_t pos = 0; (pos = svgStr.find("currentColor", pos)) != std::string::npos;)
+                    svgStr.replace(pos, 12, "#E8540D"), pos += 7;
+                bytes.assign(svgStr.begin(), svgStr.end());
+            }
+
             auto wrap = CRowLayoutBuilder::begin()->commence();
             wrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
             wrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
-
-            // Orange rounded square behind the icon (matches reference design).
-            // setMargin on a Rectangle = internal padding, so iconSize image is
-            // centred inside bgSize square without needing position flags on the child.
-            const int bgSize  = cfg.iconSize + 16;
-            const int padding = (bgSize - cfg.iconSize) / 2;
-
-            // bgRect in natural flow → wrap height = bgSize (no positioningDependsOnChild inflation).
-            auto bgRect = CRectangleBuilder::begin()
-                              ->color([] { return CHyprColor{0.91F, 0.33F, 0.05F, 1.F}; })
-                              ->rounding(12)
-                              ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
-                                      {(double)bgSize, (double)bgSize}})
-                              ->commence();
-            wrap->addChild(bgRect);
-
-            // imgEl absolute sibling with explicit offset → drawn on top of bgRect, not counted in flow height.
-            auto imgEl = CImageBuilder::begin()
-                             ->data(std::move(bytes))
-                             ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
-                                     {(double)cfg.iconSize, (double)cfg.iconSize}})
-                             ->commence();
-            imgEl->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
-            imgEl->setAbsolutePosition({(double)padding, (double)padding});
-            wrap->addChild(imgEl);
+            wrap->addChild(CImageBuilder::begin()
+                               ->data(std::move(bytes))
+                               ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
+                                       {(double)(cfg.iconSize + 16), (double)(cfg.iconSize + 16)}})
+                               ->commence());
             outer->addChild(wrap);
         }
     }
