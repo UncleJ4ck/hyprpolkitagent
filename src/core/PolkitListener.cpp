@@ -69,22 +69,6 @@ static void hpa_listener_initiate_authentication(PolkitAgentListener* listener, 
             cmd = polkit_details_lookup(details, "command");
         req.command = cmd ? cmd : "";
 
-        // Many actions embed the command in the message as "to run '/path' as ..."
-        // or "to run `/path/` as ..." (backtick-quoted on some polkit versions).
-        if (req.command.empty() && !req.message.empty()) {
-            for (char q : {'\'', '`'}) {
-                std::string needle = std::string{"to run "} + q;
-                auto        s      = req.message.find(needle);
-                if (s == std::string::npos)
-                    continue;
-                auto e = req.message.find(q, s + needle.size());
-                if (e != std::string::npos) {
-                    req.command = req.message.substr(s + needle.size(), e - s - needle.size());
-                    break;
-                }
-            }
-        }
-
         const gchar* v;
         v             = polkit_details_lookup(details, "polkit.vendor");
         req.vendor    = v ? v : "";
@@ -104,6 +88,22 @@ static void hpa_listener_initiate_authentication(PolkitAgentListener* listener, 
                     req.details.emplace_back(k, val);
             }
             g_strfreev(keys);
+        }
+    }
+
+    // Many actions embed the command in the message as "to run '/path' as ..."
+    // or "to run `/path/` as ..." — runs even when details is NULL.
+    if (req.command.empty() && !req.message.empty()) {
+        for (char q : {'\'', '`'}) {
+            std::string needle = std::string{"to run "} + q;
+            auto        s      = req.message.find(needle);
+            if (s == std::string::npos)
+                continue;
+            auto e = req.message.find(q, s + needle.size());
+            if (e != std::string::npos) {
+                req.command = req.message.substr(s + needle.size(), e - s - needle.size());
+                break;
+            }
         }
     }
 

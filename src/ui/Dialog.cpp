@@ -227,19 +227,25 @@ void CDialog::build() {
             // centred inside bgSize square without needing position flags on the child.
             const int bgSize  = cfg.iconSize + 16;
             const int padding = (bgSize - cfg.iconSize) / 2;
-            auto      bg      = CRectangleBuilder::begin()
-                          ->color([] { return CHyprColor{0.91F, 0.33F, 0.05F, 1.F}; })
-                          ->rounding(12)
-                          ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
-                                  {(double)bgSize, (double)bgSize}})
-                          ->commence();
-            bg->setMargin(padding);
-            bg->addChild(CImageBuilder::begin()
+
+            // bgRect in natural flow → wrap height = bgSize (no positioningDependsOnChild inflation).
+            auto bgRect = CRectangleBuilder::begin()
+                              ->color([] { return CHyprColor{0.91F, 0.33F, 0.05F, 1.F}; })
+                              ->rounding(12)
+                              ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
+                                      {(double)bgSize, (double)bgSize}})
+                              ->commence();
+            wrap->addChild(bgRect);
+
+            // imgEl absolute sibling with explicit offset → drawn on top of bgRect, not counted in flow height.
+            auto imgEl = CImageBuilder::begin()
                              ->data(std::move(bytes))
                              ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
                                      {(double)cfg.iconSize, (double)cfg.iconSize}})
-                             ->commence());
-            wrap->addChild(bg);
+                             ->commence();
+            imgEl->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
+            imgEl->setAbsolutePosition({(double)padding, (double)padding});
+            wrap->addChild(imgEl);
             outer->addChild(wrap);
         }
     }
