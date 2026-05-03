@@ -227,7 +227,7 @@ void CDialog::build() {
                 constexpr const char* d = "0123456789abcdef";
                 auto b2h = [d](uint8_t b) -> std::string { return {d[b >> 4], d[b & 0xF]}; };
                 const std::string col = "#" + b2h((hex >> 16) & 0xFF) + b2h((hex >> 8) & 0xFF) + b2h(hex & 0xFF);
-                const std::string rct = "<rect width=\"100%\" height=\"100%\" rx=\"12\" ry=\"12\" fill=\"" + col + "\"/>";
+                const std::string rct = "<rect width=\"100%\" height=\"100%\" rx=\"4\" ry=\"4\" fill=\"" + col + "\"/>";
                 std::string svg(bytes.begin(), bytes.end());
                 const auto svgEnd = svg.find('>');
                 if (svgEnd != std::string::npos)
@@ -330,7 +330,7 @@ void CDialog::build() {
                        ->borderColor([] { return g_pAgent->backend()->getPalette()->m_colors.text.darken(0.3); })
                        ->borderThickness(2)
                        ->rounding(g_pConfigManager->get().rounding)
-                       ->size(CDynamicSize{CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_AUTO, Vector2D{(double)cfg.passwordFieldWidth, 0.0}})
+                       ->size(CDynamicSize{CDynamicSize::HT_SIZE_AUTO, CDynamicSize::HT_SIZE_AUTO, {}})
                        ->commence();
         box->setMargin(6);
         box->addChild(CTextBuilder::begin()
