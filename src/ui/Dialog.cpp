@@ -53,12 +53,9 @@ void CDialog::setPrompt(const std::string& text, bool echo) {
 
     if (m_passwordField) {
         m_currentPassword.clear();
-        m_passwordVisible = false;
         // two-step rebuild: updateLabel only fires on text diff, sentinel forces it
         m_passwordField->rebuild()->placeholder(std::string{m_promptText})->defaultText(std::string{"\x01"})->password(!echo)->commence();
         m_passwordField->rebuild()->defaultText(std::string{""})->password(!echo)->commence();
-        if (m_revealButton)
-            m_revealButton->rebuild()->label(std::string{"Show"})->commence();
         m_passwordField->focus();
     }
 }
@@ -356,7 +353,7 @@ void CDialog::build() {
 
     // password row
     {
-        auto pwRow = CRowLayoutBuilder::begin()->gap(4)->commence();
+        auto pwRow = CRowLayoutBuilder::begin()->commence();
         pwRow->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
         pwRow->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
 
@@ -366,29 +363,12 @@ void CDialog::build() {
                               ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
                                       {(double)cfg.passwordFieldWidth, 34.0}})
                               ->onTextEdited([this](CSharedPointer<CTextboxElement>, const std::string& s) {
-                                  if (s == "\x01")
-                                      return; // sentinel, not real user input
                                   m_currentPassword = s;
                                   if (!s.empty() && m_errShown)
                                       setError("");
                               })
                               ->commence();
         pwRow->addChild(m_passwordField);
-
-        m_revealButton = CButtonBuilder::begin()
-                             ->label(std::string{"Show"})
-                             ->noBorder(true)
-                             ->onMainClick([this](CSharedPointer<CButtonElement>) {
-                                 m_passwordVisible = !m_passwordVisible;
-                                 // sentinel forces a text diff, then restore real text; without
-                                 // this the toolkit keeps the old masking even when password() flips
-                                 m_passwordField->rebuild()->defaultText(std::string{"\x01"})->password(!m_passwordVisible)->commence();
-                                 m_passwordField->rebuild()->defaultText(std::string{m_currentPassword})->password(!m_passwordVisible)->commence();
-                                 m_revealButton->rebuild()->label(std::string{m_passwordVisible ? "Hide" : "Show"})->commence();
-                                 m_passwordField->focus();
-                             })
-                             ->commence();
-        pwRow->addChild(m_revealButton);
         outer->addChild(pwRow);
     }
 
