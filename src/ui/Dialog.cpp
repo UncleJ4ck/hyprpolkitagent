@@ -453,7 +453,7 @@ void CDialog::build() {
         hintWrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
         hintWrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
         hintWrap->addChild(CTextBuilder::begin()
-                               ->text(std::string{"Esc to cancel  ·  Enter to authenticate"})
+                               ->text(std::string{"Esc to cancel  |  Enter to authenticate"})
                                ->fontSize({CFontSize::HT_FONT_SMALL})
                                ->color([] { return g_pAgent->backend()->getPalette()->m_colors.text.darken(0.5); })
                                ->commence());
