@@ -160,7 +160,7 @@ void CDialog::build() {
 
     m_window = CWindowBuilder::begin()
                    ->preferredSize({cfg.windowWidth, cfg.windowHeight})
-                   ->minSize({480, 380})
+                   ->minSize({480, 540})
                    ->maxSize({700, 700})
                    ->appTitle("Authentication Required")
                    ->appClass("hyprpolkitagent")
@@ -325,7 +325,7 @@ void CDialog::build() {
                        ->rounding(g_pConfigManager->get().rounding)
                        ->size(CDynamicSize{CDynamicSize::HT_SIZE_AUTO, CDynamicSize::HT_SIZE_AUTO, {}})
                        ->commence();
-        box->setMargin(6);
+        box->setMargin(10);
         box->addChild(CTextBuilder::begin()
                           ->text(std::move(cmd))
                           ->fontFamily(std::string{"monospace"})
