@@ -340,12 +340,18 @@ void CDialog::build() {
                        ->rounding(6)
                        ->size(CDynamicSize{CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE, {280.0, 36.0}})
                        ->commence();
-        box->addChild(CTextBuilder::begin()
-                          ->text(std::move(cmd))
-                          ->fontFamily(std::string{"monospace"})
-                          ->align(HT_FONT_ALIGN_CENTER)
-                          ->color([] { return g_pAgent->backend()->getPalette()->m_colors.text; })
-                          ->commence());
+
+        // CRectangleElement isn't a layout container, so wrap the text in a row
+        // and let HT_POSITION_FLAG_CENTER do the actual centering inside the box
+        auto inner = CRowLayoutBuilder::begin()->commence();
+        inner->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
+        inner->setPositionFlag(IElement::HT_POSITION_FLAG_CENTER, true);
+        inner->addChild(CTextBuilder::begin()
+                            ->text(std::move(cmd))
+                            ->fontFamily(std::string{"monospace"})
+                            ->color([] { return g_pAgent->backend()->getPalette()->m_colors.text; })
+                            ->commence());
+        box->addChild(inner);
         wrap->addChild(box);
         outer->addChild(wrap);
     }
