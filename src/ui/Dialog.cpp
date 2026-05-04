@@ -32,8 +32,19 @@ CDialog::~CDialog() {
 }
 
 void CDialog::show() {
-    if (m_window)
-        m_window->open();
+    if (!m_window)
+        return;
+    // initial textbox paint is broken until a layout pass kicks in, force one
+    if (m_passwordRow && m_passwordField && m_revealButton) {
+        m_passwordRow->removeChild(m_passwordField);
+        m_passwordRow->removeChild(m_revealButton);
+        buildPasswordField();
+        m_passwordRow->addChild(m_passwordField);
+        m_passwordRow->addChild(m_revealButton);
+    }
+    m_window->open();
+    if (m_passwordField)
+        m_passwordField->focus();
 }
 
 void CDialog::close() {
