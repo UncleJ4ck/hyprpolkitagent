@@ -493,10 +493,21 @@ void CDialog::build() {
         detailsWrap->addChild(m_detailsButton);
         outer->addChild(detailsWrap);
 
-        // detail rows, not yet added to the tree
-        auto detailsCol = CColumnLayoutBuilder::begin()->commence();
-        detailsCol->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
-        detailsCol->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
+        // detail rows wrapped in a styled box, not yet added to the tree
+        auto detailsBoxWrap = CRowLayoutBuilder::begin()->commence();
+        detailsBoxWrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
+        detailsBoxWrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
+
+        auto detailsBox = CRectangleBuilder::begin()
+                              ->color([] { return g_pAgent->backend()->getPalette()->m_colors.base; })
+                              ->borderColor([] { return g_pAgent->backend()->getPalette()->m_colors.text.darken(0.3); })
+                              ->borderThickness(2)
+                              ->rounding(6)
+                              ->size(CDynamicSize{CDynamicSize::HT_SIZE_AUTO, CDynamicSize::HT_SIZE_AUTO, {}})
+                              ->commence();
+
+        auto detailsCol = CColumnLayoutBuilder::begin()->gap(4)->commence();
+        detailsCol->setMargin(12);
 
         for (const auto& [key, val] : fields) {
             auto rowWrap = CRowLayoutBuilder::begin()->commence();
@@ -510,7 +521,9 @@ void CDialog::build() {
             detailsCol->addChild(rowWrap);
         }
 
-        m_detailsContainer = detailsCol;
+        detailsBox->addChild(detailsCol);
+        detailsBoxWrap->addChild(detailsBox);
+        m_detailsContainer = detailsBoxWrap;
         m_detailsParent    = outer;
     }
 
