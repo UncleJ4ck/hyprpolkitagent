@@ -337,10 +337,9 @@ void CDialog::build() {
                        ->color([] { return g_pAgent->backend()->getPalette()->m_colors.base; })
                        ->borderColor([] { return g_pAgent->backend()->getPalette()->m_colors.text.darken(0.3); })
                        ->borderThickness(2)
-                       ->rounding(g_pConfigManager->get().rounding)
-                       ->size(CDynamicSize{CDynamicSize::HT_SIZE_AUTO, CDynamicSize::HT_SIZE_AUTO, {}})
+                       ->rounding(6)
+                       ->size(CDynamicSize{CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE, {280.0, 36.0}})
                        ->commence();
-        box->setMargin(14);
         box->addChild(CTextBuilder::begin()
                           ->text(std::move(cmd))
                           ->fontFamily(std::string{"monospace"})
