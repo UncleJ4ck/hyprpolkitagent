@@ -380,8 +380,6 @@ void CDialog::build() {
                              ->noBorder(true)
                              ->onMainClick([this](CSharedPointer<CButtonElement>) {
                                  m_passwordVisible = !m_passwordVisible;
-                                 // sentinel forces updateLabel, then restore tracked password
-                                 m_passwordField->rebuild()->defaultText(std::string{"\x01"})->password(!m_passwordVisible)->commence();
                                  m_passwordField->rebuild()->defaultText(std::string{m_currentPassword})->password(!m_passwordVisible)->commence();
                                  m_revealButton->rebuild()->label(std::string{m_passwordVisible ? "Hide" : "Show"})->commence();
                                  m_passwordField->focus();
