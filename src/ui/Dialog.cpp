@@ -325,7 +325,7 @@ void CDialog::build() {
                        ->rounding(g_pConfigManager->get().rounding)
                        ->size(CDynamicSize{CDynamicSize::HT_SIZE_AUTO, CDynamicSize::HT_SIZE_AUTO, {}})
                        ->commence();
-        box->setMargin(10);
+        box->setMargin(14);
         box->addChild(CTextBuilder::begin()
                           ->text(std::move(cmd))
                           ->fontFamily(std::string{"monospace"})
