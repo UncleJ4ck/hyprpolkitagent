@@ -37,6 +37,7 @@ class CDialog {
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CTextboxElement> m_passwordField;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CTextElement>    m_errorLabel;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CTextElement>    m_infoLabel;
+    Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CTextElement>    m_capsLockLabel;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CButtonElement>  m_revealButton;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CButtonElement>  m_authButton;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CButtonElement>  m_detailsButton;

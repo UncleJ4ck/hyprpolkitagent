@@ -174,8 +174,12 @@ void CDialog::build() {
 
     m_closeListener = m_window->m_events.closeRequest.listen([] { g_pAgent->cancel(); });
 
-    // Enter key submits
+    // Enter key submits; also mirror caps-lock modifier to the warning label.
     m_keyListener = m_window->m_events.keyboardKey.listen([this](const Input::SKeyboardKeyEvent& ev) {
+        const bool caps = ev.modMask & Input::HT_MODIFIER_CAPS;
+        if (m_capsLockLabel)
+            m_capsLockLabel->rebuild()->text(std::string{caps ? "Caps Lock is on" : ""})->commence();
+
         if (!ev.down || ev.repeat)
             return;
         if (ev.xkbKeysym == XKB_KEY_Return || ev.xkbKeysym == XKB_KEY_KP_Enter) {
@@ -192,14 +196,17 @@ void CDialog::build() {
             ->color([] { return g_pAgent->backend()->getPalette()->m_colors.background; })
             ->commence());
 
-    // Outer column — 88 % width, centered, 14 px gap between children
+    // Outer column — auto-height so it shrink-wraps its children. The window
+    // stays at preferredSize as a compositor hint; the column never exceeds it
+    // because we keep content compact, and centering the column vertically
+    // gives a tidy result whether content is tall or short.
     auto outer = CColumnLayoutBuilder::begin()
-                     ->size({CDynamicSize::HT_SIZE_PERCENT, CDynamicSize::HT_SIZE_PERCENT, {0.88F, 1.F}})
-                     ->gap(14)
+                     ->size({CDynamicSize::HT_SIZE_PERCENT, CDynamicSize::HT_SIZE_AUTO, {0.88F, 0.0F}})
+                     ->gap(10)
                      ->commence();
     outer->setMargin(16);
     outer->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
-    outer->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
+    outer->setPositionFlag(IElement::HT_POSITION_FLAG_CENTER, true);
     m_window->m_rootElement->addChild(outer);
 
     // ── Icon ─────────────────────────────────────────────────────────────────
@@ -219,15 +226,9 @@ void CDialog::build() {
 
             // Inject a background rect directly into the SVG so the composite
             // (coloured rounded square + padlock) is a single CImageElement.
-            // Using a CRectangleElement as parent triggers positioningDependsOnChild
-            // which inflates the outer column height and pushes buttons off-screen.
+            // Hyprland brand cyan — independent of the user's Matugen accent.
             if (bytes[0] == '<') {
-                const auto     ac  = g_pAgent->backend()->getPalette()->m_colors.accent;
-                const uint32_t hex = ac.getAsHex(); // AR32: 0xAARRGGBB
-                constexpr const char* d = "0123456789abcdef";
-                auto b2h = [d](uint8_t b) -> std::string { return {d[b >> 4], d[b & 0xF]}; };
-                const std::string col = "#" + b2h((hex >> 16) & 0xFF) + b2h((hex >> 8) & 0xFF) + b2h(hex & 0xFF);
-                const std::string rct = "<rect width=\"100%\" height=\"100%\" rx=\"4\" ry=\"4\" fill=\"" + col + "\"/>";
+                const std::string rct = "<rect width=\"100%\" height=\"100%\" rx=\"4\" ry=\"4\" fill=\"#33ccff\"/>";
                 std::string svg(bytes.begin(), bytes.end());
                 const auto svgEnd = svg.find('>');
                 if (svgEnd != std::string::npos)
@@ -380,6 +381,20 @@ void CDialog::build() {
         outer->addChild(pwRow);
     }
 
+    // ── Caps Lock warning ─────────────────────────────────────────────────────
+    {
+        auto capsWrap = CRowLayoutBuilder::begin()->commence();
+        capsWrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
+        capsWrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
+        m_capsLockLabel = CTextBuilder::begin()
+                              ->text(std::string{""})
+                              ->fontSize({CFontSize::HT_FONT_SMALL})
+                              ->color([] { return CHyprColor{1.0F, 0.75F, 0.2F, 1.F}; })
+                              ->commence();
+        capsWrap->addChild(m_capsLockLabel);
+        outer->addChild(capsWrap);
+    }
+
     // ── Error / info labels ───────────────────────────────────────────────────
     {
         auto errWrap = CRowLayoutBuilder::begin()->commence();
@@ -427,8 +442,32 @@ void CDialog::build() {
         outer->addChild(btnRow);
     }
 
-    // ── Show details (only if there are details and user hasn't disabled it) ──
-    if (cfg.showDetails && !m_req.details.empty()) {
+    // ── Keyboard hint ─────────────────────────────────────────────────────────
+    {
+        auto hintWrap = CRowLayoutBuilder::begin()->commence();
+        hintWrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
+        hintWrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
+        hintWrap->addChild(CTextBuilder::begin()
+                               ->text(std::string{"Esc to cancel  ·  Enter to authenticate"})
+                               ->fontSize({CFontSize::HT_FONT_SMALL})
+                               ->color([] { return g_pAgent->backend()->getPalette()->m_colors.text.darken(0.5); })
+                               ->commence());
+        outer->addChild(hintWrap);
+    }
+
+    // ── Show details ──────────────────────────────────────────────────────────
+    // Compose a flat list of metadata we know about: action id is always present
+    // for any polkit request, vendor info shows up for vendored actions, and any
+    // extra polkit keys come along on top. Only the disclosure button needs the
+    // list to be non-empty.
+    std::vector<std::pair<std::string, std::string>> fields;
+    if (!m_req.actionId.empty())  fields.emplace_back("Action",  m_req.actionId);
+    if (!m_req.vendor.empty())    fields.emplace_back("Vendor",  m_req.vendor);
+    if (!m_req.vendorUrl.empty()) fields.emplace_back("URL",     m_req.vendorUrl);
+    for (const auto& [k, v] : m_req.details)
+        fields.emplace_back(k, v);
+
+    if (cfg.showDetails && !fields.empty()) {
         auto detailsWrap = CRowLayoutBuilder::begin()->commence();
         detailsWrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
         detailsWrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
@@ -454,7 +493,7 @@ void CDialog::build() {
         detailsCol->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
         detailsCol->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
 
-        for (const auto& [key, val] : m_req.details) {
+        for (const auto& [key, val] : fields) {
             auto rowWrap = CRowLayoutBuilder::begin()->commence();
             rowWrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
             rowWrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
