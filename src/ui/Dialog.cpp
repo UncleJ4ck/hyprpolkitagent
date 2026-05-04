@@ -64,7 +64,7 @@ void CDialog::setPrompt(const std::string& text, bool echo) {
 
     if (m_passwordRow && m_passwordField) {
         m_currentPassword.clear();
-        m_passwordVisible = !echo;
+        m_passwordVisible = false; // new prompt always starts masked, user can toggle via show
         m_passwordRow->removeChild(m_passwordField);
         m_passwordRow->removeChild(m_revealButton);
         buildPasswordField();
