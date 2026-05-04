@@ -26,7 +26,7 @@ void CConfigManager::load() {
                   "    rounding            = 8\n"
                   "    password_field_width = 340\n"
                   "    window_width        = 520\n"
-                  "    window_height       = 460\n"
+                  "    window_height       = 520\n"
                   "    show_icon           = true\n"
                   "    show_details        = true\n"
                   "}\n",
@@ -45,7 +45,7 @@ void CConfigManager::load() {
     cfg.addConfigValue("general:rounding",             Hyprlang::INT{8});
     cfg.addConfigValue("general:password_field_width", Hyprlang::INT{340});
     cfg.addConfigValue("general:window_width",         Hyprlang::INT{520});
-    cfg.addConfigValue("general:window_height",        Hyprlang::INT{460});
+    cfg.addConfigValue("general:window_height",        Hyprlang::INT{520});
     cfg.addConfigValue("general:show_icon",            Hyprlang::INT{1});
     cfg.addConfigValue("general:show_details",         Hyprlang::INT{1});
 

@@ -52,5 +52,6 @@ class CDialog {
     bool                          m_passwordVisible = false;
     bool                          m_promptEcho      = false;
     bool                          m_detailsVisible  = false;
+    bool                          m_capsLockOn      = false;
     std::string                   m_promptText      = "Password";
 };

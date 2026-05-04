@@ -174,11 +174,14 @@ void CDialog::build() {
 
     m_closeListener = m_window->m_events.closeRequest.listen([] { g_pAgent->cancel(); });
 
-    // Enter key submits; also mirror caps-lock modifier to the warning label.
     m_keyListener = m_window->m_events.keyboardKey.listen([this](const Input::SKeyboardKeyEvent& ev) {
+        // caps state only refreshed on key events; initial state is invisible until first press
         const bool caps = ev.modMask & Input::HT_MODIFIER_CAPS;
-        if (m_capsLockLabel)
-            m_capsLockLabel->rebuild()->text(std::string{caps ? "Caps Lock is on" : ""})->commence();
+        if (caps != m_capsLockOn) {
+            m_capsLockOn = caps;
+            if (m_capsLockLabel)
+                m_capsLockLabel->rebuild()->text(std::string{caps ? "Caps Lock is on" : ""})->commence();
+        }
 
         if (!ev.down || ev.repeat)
             return;
@@ -206,7 +209,7 @@ void CDialog::build() {
                      ->commence();
     outer->setMargin(16);
     outer->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
-    outer->setPositionFlag(IElement::HT_POSITION_FLAG_CENTER, true);
+    outer->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
     m_window->m_rootElement->addChild(outer);
 
     // ── Icon ─────────────────────────────────────────────────────────────────
