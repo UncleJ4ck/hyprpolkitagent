@@ -339,6 +339,10 @@ void CDialog::build() {
         if (!m_req.command.empty())
             msg = "Authentication is needed to run";
 
+        constexpr size_t MAX_MSG = 120;
+        if (msg.size() > MAX_MSG)
+            msg = msg.substr(0, MAX_MSG - 3) + "...";
+
         auto wrap = CRowLayoutBuilder::begin()->commence();
         wrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
         wrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
