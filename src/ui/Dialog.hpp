@@ -58,6 +58,7 @@ class CDialog {
     std::string                   m_currentPassword;
     bool                          m_promptEcho      = false;
     bool                          m_passwordVisible = false;
+    bool                          m_authEnabled     = false;
     bool                          m_detailsVisible  = false;
     bool                          m_capsLockOn      = false;
     bool                          m_capsShown       = false;

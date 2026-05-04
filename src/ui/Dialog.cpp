@@ -72,6 +72,10 @@ void CDialog::setPrompt(const std::string& text, bool echo) {
         m_passwordRow->addChild(m_revealButton);
         if (m_revealButton)
             m_revealButton->rebuild()->label(std::string{"Show"})->commence();
+        if (m_authButton && m_authEnabled) {
+            m_authEnabled = false;
+            m_authButton->rebuild()->label(std::string{"Authenticate"})->noBorder(true)->commence();
+        }
         m_passwordField->focus();
     }
 }
@@ -86,6 +90,11 @@ void CDialog::buildPasswordField() {
                           ->defaultText(std::string{m_currentPassword})
                           ->onTextEdited([this](CSharedPointer<CTextboxElement>, const std::string& s) {
                               m_currentPassword = s;
+                              const bool nowEnabled = !s.empty();
+                              if (nowEnabled != m_authEnabled && m_authButton) {
+                                  m_authEnabled = nowEnabled;
+                                  m_authButton->rebuild()->label(std::string{"Authenticate"})->noBorder(!nowEnabled)->commence();
+                              }
                               if (!s.empty() && m_errShown)
                                   setError("");
                           })
@@ -466,8 +475,10 @@ void CDialog::build() {
                              ->onMainClick([](CSharedPointer<CButtonElement>) { g_pAgent->cancel(); })
                              ->commence());
 
+        // start in dim state, onTextEdited will flip it on first keystroke
         m_authButton = CButtonBuilder::begin()
                            ->label(std::string{"Authenticate"})
+                           ->noBorder(true)
                            ->onMainClick([this](CSharedPointer<CButtonElement>) {
                                if (!m_currentPassword.empty())
                                    g_pAgent->submitPassword(m_currentPassword);
