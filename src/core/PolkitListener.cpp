@@ -25,8 +25,6 @@ namespace {
     }
 }
 
-// ----- HpaListener GObject -----
-
 struct _HpaListener {
     PolkitAgentListener parent_instance;
 };
@@ -91,9 +89,7 @@ static void hpa_listener_initiate_authentication(PolkitAgentListener* listener, 
         }
     }
 
-    // Many actions embed the command in the message as "to run '/path' as ..." or
-    // "to run `/path` as ...". Polkit mixes quote styles (open ` close ') so match
-    // any quote pair rather than requiring identical open/close characters.
+    // extract command from message, polkit mixes open/close quote styles
     if (req.command.empty() && !req.message.empty()) {
         auto s = req.message.find("to run ");
         if (s != std::string::npos) {
@@ -121,8 +117,6 @@ static void hpa_listener_class_init(HpaListenerClass* klass) {
 }
 
 static void hpa_listener_init(HpaListener*) {}
-
-// ----- CPolkitListener -----
 
 static void rejectRequest(CPolkitListener::SAuthRequest& req, const char* msg);
 
@@ -241,7 +235,7 @@ void CPolkitListener::completeCurrent(bool gainedAuth, bool cancelled) {
         return;
 
     if (!gainedAuth && !cancelled) {
-        // PAM said no but user didn't cancel: clear the field, restart session for retry.
+        // pam said no but user didn't cancel, clear field and restart session for retry
         std::print(stderr, "> auth failed, retrying\n");
         teardownSession();
         startSession();

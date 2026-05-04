@@ -54,8 +54,7 @@ void CDialog::setPrompt(const std::string& text, bool echo) {
     if (m_passwordField) {
         m_currentPassword.clear();
         m_passwordVisible = false;
-        // Two-step rebuild: changes text to force updateLabel (only fires on text diff),
-        // then restores empty. Both steps needed even when text is already empty.
+        // two-step rebuild: updateLabel only fires on text diff, sentinel forces it
         m_passwordField->rebuild()->placeholder(std::string{m_promptText})->defaultText(std::string{"\x01"})->password(!echo)->commence();
         m_passwordField->rebuild()->defaultText(std::string{""})->password(!echo)->commence();
         if (m_revealButton)
@@ -89,9 +88,7 @@ static std::string gtkIconTheme() {
     return {};
 }
 
-// Load icon bytes: searches per-theme (PNG then SVG) before falling back to other themes.
-// Plasma SVGs use CSS `color:` for currentColor fills; resolves them explicitly so librsvg
-// renders the correct colours regardless of currentColor cascade quirks.
+// loads icon bytes; for SVG, resolves currentColor since librsvg ignores external context
 static std::vector<uint8_t> loadIconData(const std::string& iconName) {
     namespace fs = std::filesystem;
 
@@ -102,8 +99,7 @@ static std::vector<uint8_t> loadIconData(const std::string& iconName) {
     for (const char* t : {"hicolor", "AdwaitaLegacy", "Papirus-Dark"})
         themes.push_back(t);
 
-    // Per-theme search: PNG then SVG, so the user's theme SVG wins over a
-    // generic PNG from a fallback theme (fixes cross-theme key vs padlock confusion).
+    // per-theme PNG-then-SVG so user theme wins over fallback themes
     auto findPath = [&]() -> std::string {
         for (const auto& t : themes)
             for (const char* sz : {"48x48", "64x64", "32x32", "scalable", "24x24", "22x22"})
@@ -128,9 +124,7 @@ static std::vector<uint8_t> loadIconData(const std::string& iconName) {
     std::ifstream f(path);
     std::string   svg((std::istreambuf_iterator<char>(f)), {});
 
-    // Resolve currentColor to the theme text colour so elements using it render
-    // correctly. The SVG CSS defines the intended colour; we apply it explicitly
-    // because librsvg doesn't inherit currentColor from an external context.
+    // resolve currentColor to the theme text colour, librsvg won't inherit it
     auto cssColor = [&](const std::string& cls) -> std::string {
         auto p = svg.find(cls);
         if (p == std::string::npos)
@@ -154,7 +148,7 @@ static std::vector<uint8_t> loadIconData(const std::string& iconName) {
         for (size_t pos = 0; (pos = svg.find("currentColor", pos)) != std::string::npos;)
             svg.replace(pos, 12, textColor), pos += textColor.size();
 
-    // color: → fill: so librsvg applies CSS palette rules to SVG paths.
+    // color: -> fill: so librsvg applies CSS palette rules to paths
     for (size_t pos = 0; (pos = svg.find("color:", pos)) != std::string::npos;)
         svg.replace(pos, 6, "fill:"), pos += 5;
 
@@ -193,16 +187,13 @@ void CDialog::build() {
         }
     });
 
-    // Background
+    // background
     m_window->m_rootElement->addChild(
         CRectangleBuilder::begin()
             ->color([] { return g_pAgent->backend()->getPalette()->m_colors.background; })
             ->commence());
 
-    // Outer column — auto-height so it shrink-wraps its children. The window
-    // stays at preferredSize as a compositor hint; the column never exceeds it
-    // because we keep content compact, and centering the column vertically
-    // gives a tidy result whether content is tall or short.
+    // outer column auto-sizes to its children
     auto outer = CColumnLayoutBuilder::begin()
                      ->size({CDynamicSize::HT_SIZE_PERCENT, CDynamicSize::HT_SIZE_AUTO, {0.88F, 0.0F}})
                      ->gap(10)
@@ -212,9 +203,9 @@ void CDialog::build() {
     outer->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
     m_window->m_rootElement->addChild(outer);
 
-    // ── Icon ─────────────────────────────────────────────────────────────────
+    // icon
     if (cfg.showIcon) {
-        // dialog-password is a key in Papirus; prefer a padlock for auth UI.
+        // dialog-password is a key in Papirus, prefer a padlock for auth UI
         std::string iconName = m_req.iconName.empty() ? "object-locked" : m_req.iconName;
         if (iconName == "dialog-password")
             iconName = "object-locked";
@@ -227,9 +218,7 @@ void CDialog::build() {
         if (!bytes.empty()) {
             const int bgSize = cfg.iconSize + 16;
 
-            // Inject a background rect directly into the SVG so the composite
-            // (coloured rounded square + padlock) is a single CImageElement.
-            // Hyprland brand cyan — independent of the user's Matugen accent.
+            // bg rect into svg keeps composite as one image element, hyprland brand cyan
             if (bytes[0] == '<') {
                 const std::string rct = "<rect width=\"100%\" height=\"100%\" rx=\"4\" ry=\"4\" fill=\"#33ccff\"/>";
                 std::string svg(bytes.begin(), bytes.end());
@@ -251,7 +240,7 @@ void CDialog::build() {
         }
     }
 
-    // ── Title ─────────────────────────────────────────────────────────────────
+    // title
     {
         auto wrap = CRowLayoutBuilder::begin()->commence();
         wrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
@@ -264,7 +253,7 @@ void CDialog::build() {
         outer->addChild(wrap);
     }
 
-    // ── Subtitle: "for <user>" or identity combobox ───────────────────────────
+    // subtitle, or identity combobox if multiple
     {
         auto wrap = CRowLayoutBuilder::begin()->commence();
         wrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
@@ -300,7 +289,7 @@ void CDialog::build() {
         outer->addChild(wrap);
     }
 
-    // ── Message ───────────────────────────────────────────────────────────────
+    // message
     {
         std::string msg = m_req.message;
         if (!m_req.command.empty())
@@ -317,13 +306,13 @@ void CDialog::build() {
         outer->addChild(wrap);
     }
 
-    // ── Command box ───────────────────────────────────────────────────────────
+    // command box
     if (!m_req.command.empty()) {
         auto wrap = CRowLayoutBuilder::begin()->commence();
         wrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
         wrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
 
-        // Truncate long commands so they don't overflow the window
+        // truncate long commands so they don't overflow the window
         std::string cmd = m_req.command;
         constexpr size_t MAX_CMD = 55;
         if (cmd.size() > MAX_CMD)
@@ -347,7 +336,7 @@ void CDialog::build() {
         outer->addChild(wrap);
     }
 
-    // ── Password row ──────────────────────────────────────────────────────────
+    // password row
     {
         auto pwRow = CRowLayoutBuilder::begin()->gap(4)->commence();
         pwRow->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
@@ -360,7 +349,7 @@ void CDialog::build() {
                                       {(double)cfg.passwordFieldWidth, 34.0}})
                               ->onTextEdited([this](CSharedPointer<CTextboxElement>, const std::string& s) {
                                   if (s == "\x01")
-                                      return; // sentinel — not real user input
+                                      return; // sentinel, not real user input
                                   m_currentPassword = s;
                                   if (!s.empty() && m_errorLabel)
                                       m_errorLabel->rebuild()->text(std::string{""})->commence();
@@ -373,7 +362,7 @@ void CDialog::build() {
                              ->noBorder(true)
                              ->onMainClick([this](CSharedPointer<CButtonElement>) {
                                  m_passwordVisible = !m_passwordVisible;
-                                 // Force updateLabel via sentinel then restore tracked password.
+                                 // sentinel forces updateLabel, then restore tracked password
                                  m_passwordField->rebuild()->defaultText(std::string{"\x01"})->password(!m_passwordVisible)->commence();
                                  m_passwordField->rebuild()->defaultText(std::string{m_currentPassword})->password(!m_passwordVisible)->commence();
                                  m_revealButton->rebuild()->label(std::string{m_passwordVisible ? "Hide" : "Show"})->commence();
@@ -384,7 +373,7 @@ void CDialog::build() {
         outer->addChild(pwRow);
     }
 
-    // ── Caps Lock warning ─────────────────────────────────────────────────────
+    // caps lock
     {
         auto capsWrap = CRowLayoutBuilder::begin()->commence();
         capsWrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
@@ -398,7 +387,7 @@ void CDialog::build() {
         outer->addChild(capsWrap);
     }
 
-    // ── Error / info labels ───────────────────────────────────────────────────
+    // error / info labels
     {
         auto errWrap = CRowLayoutBuilder::begin()->commence();
         errWrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
@@ -421,7 +410,7 @@ void CDialog::build() {
         outer->addChild(infoWrap);
     }
 
-    // ── Action buttons ────────────────────────────────────────────────────────
+    // buttons
     {
         auto btnRow = CRowLayoutBuilder::begin()->gap(16)->commence();
         btnRow->setMargin(8);
@@ -445,7 +434,7 @@ void CDialog::build() {
         outer->addChild(btnRow);
     }
 
-    // ── Keyboard hint ─────────────────────────────────────────────────────────
+    // keyboard hint
     {
         auto hintWrap = CRowLayoutBuilder::begin()->commence();
         hintWrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
@@ -458,11 +447,7 @@ void CDialog::build() {
         outer->addChild(hintWrap);
     }
 
-    // ── Show details ──────────────────────────────────────────────────────────
-    // Compose a flat list of metadata we know about: action id is always present
-    // for any polkit request, vendor info shows up for vendored actions, and any
-    // extra polkit keys come along on top. Only the disclosure button needs the
-    // list to be non-empty.
+    // show details: action id, vendor, url, then extras
     std::vector<std::pair<std::string, std::string>> fields;
     if (!m_req.actionId.empty())  fields.emplace_back("Action",  m_req.actionId);
     if (!m_req.vendor.empty())    fields.emplace_back("Vendor",  m_req.vendor);
@@ -491,7 +476,7 @@ void CDialog::build() {
         detailsWrap->addChild(m_detailsButton);
         outer->addChild(detailsWrap);
 
-        // Build the details container (not yet added to tree)
+        // detail rows, not yet added to the tree
         auto detailsCol = CColumnLayoutBuilder::begin()->commence();
         detailsCol->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
         detailsCol->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
