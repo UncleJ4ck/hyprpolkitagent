@@ -380,6 +380,9 @@ void CDialog::build() {
                              ->noBorder(true)
                              ->onMainClick([this](CSharedPointer<CButtonElement>) {
                                  m_passwordVisible = !m_passwordVisible;
+                                 // sentinel forces a text diff, then restore real text; without
+                                 // this the toolkit keeps the old masking even when password() flips
+                                 m_passwordField->rebuild()->defaultText(std::string{"\x01"})->password(!m_passwordVisible)->commence();
                                  m_passwordField->rebuild()->defaultText(std::string{m_currentPassword})->password(!m_passwordVisible)->commence();
                                  m_revealButton->rebuild()->label(std::string{m_passwordVisible ? "Hide" : "Show"})->commence();
                                  m_passwordField->focus();
