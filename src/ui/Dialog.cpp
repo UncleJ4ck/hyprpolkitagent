@@ -203,7 +203,7 @@ void CDialog::build() {
 
     m_window = CWindowBuilder::begin()
                    ->preferredSize({cfg.windowWidth, cfg.windowHeight})
-                   ->minSize({540, 480})
+                   ->minSize({540, 440})
                    ->maxSize({700, 700})
                    ->appTitle("Authentication Required")
                    ->appClass("hyprpolkitagent")
@@ -240,7 +240,7 @@ void CDialog::build() {
     // outer column auto-sizes to its children
     auto outer = CColumnLayoutBuilder::begin()
                      ->size({CDynamicSize::HT_SIZE_PERCENT, CDynamicSize::HT_SIZE_AUTO, {0.88F, 0.0F}})
-                     ->gap(10)
+                     ->gap(8)
                      ->commence();
     outer->setMargin(16);
     outer->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
