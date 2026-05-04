@@ -451,24 +451,6 @@ void CDialog::build() {
         outer->addChild(btnRow);
     }
 
-    // keyboard hint, wrapped in a sub column so the toolkit doesn't ellipsize it
-    {
-        auto hintCol = CColumnLayoutBuilder::begin()->commence();
-        hintCol->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
-        hintCol->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
-
-        auto hintWrap = CRowLayoutBuilder::begin()->commence();
-        hintWrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
-        hintWrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
-        hintWrap->addChild(CTextBuilder::begin()
-                               ->text(std::string{"Esc cancel  |  Enter confirm"})
-                               ->fontSize({CFontSize::HT_FONT_SMALL})
-                               ->color([] { return g_pAgent->backend()->getPalette()->m_colors.text.darken(0.5); })
-                               ->commence());
-        hintCol->addChild(hintWrap);
-        outer->addChild(hintCol);
-    }
-
     // show details: action id, vendor, url, then extras
     std::vector<std::pair<std::string, std::string>> fields;
     if (!m_req.actionId.empty())  fields.emplace_back("Action",  m_req.actionId);
