@@ -34,14 +34,6 @@ CDialog::~CDialog() {
 void CDialog::show() {
     if (!m_window)
         return;
-    // initial textbox paint is broken until a layout pass kicks in, force one
-    if (m_passwordRow && m_passwordField && m_revealButton) {
-        m_passwordRow->removeChild(m_passwordField);
-        m_passwordRow->removeChild(m_revealButton);
-        buildPasswordField();
-        m_passwordRow->addChild(m_passwordField);
-        m_passwordRow->addChild(m_revealButton);
-    }
     m_window->open();
     if (m_passwordField)
         m_passwordField->focus();
@@ -55,29 +47,43 @@ void CDialog::close() {
 }
 
 void CDialog::setPrompt(const std::string& text, bool echo) {
-    m_promptText = text;
-    if (m_promptText.empty())
-        m_promptText = "Password";
-    if (!m_promptText.empty() && m_promptText.back() == ':')
-        m_promptText.pop_back();
+    std::string newPrompt = text;
+    if (newPrompt.empty())
+        newPrompt = "Password";
+    if (!newPrompt.empty() && newPrompt.back() == ':')
+        newPrompt.pop_back();
+
+    // skip the rebuild dance when the field is already in the desired state, the
+    // initial prompt arrives milliseconds after build() and used to clobber a
+    // freshly typed character with a fresh empty field
+    const bool clean = m_currentPassword.empty() && !m_passwordVisible
+                       && newPrompt == m_promptText && echo == m_promptEcho;
+
+    m_promptText = newPrompt;
     m_promptEcho = echo;
 
-    if (m_passwordRow && m_passwordField) {
-        m_currentPassword.clear();
-        m_passwordVisible = false; // new prompt always starts masked, user can toggle via show
-        m_passwordRow->removeChild(m_passwordField);
-        m_passwordRow->removeChild(m_revealButton);
-        buildPasswordField();
-        m_passwordRow->addChild(m_passwordField);
-        m_passwordRow->addChild(m_revealButton);
-        if (m_revealButton)
-            m_revealButton->rebuild()->label(std::string{"Show"})->commence();
-        if (m_authButton && m_authEnabled) {
-            m_authEnabled = false;
-            m_authButton->rebuild()->label(std::string{"Authenticate"})->noBorder(true)->commence();
-        }
-        m_passwordField->focus();
+    if (clean) {
+        if (m_passwordField)
+            m_passwordField->focus();
+        return;
     }
+
+    if (!m_passwordRow || !m_passwordField || !m_revealButton)
+        return;
+
+    m_currentPassword.clear();
+    m_passwordVisible = false;
+    m_passwordRow->removeChild(m_passwordField);
+    m_passwordRow->removeChild(m_revealButton);
+    buildPasswordField();
+    m_passwordRow->addChild(m_passwordField);
+    m_passwordRow->addChild(m_revealButton);
+    m_revealButton->rebuild()->label(std::string{"Show"})->commence();
+    if (m_authButton && m_authEnabled) {
+        m_authEnabled = false;
+        m_authButton->rebuild()->label(std::string{"Authenticate"})->noBorder(true)->commence();
+    }
+    m_passwordField->focus();
 }
 
 void CDialog::buildPasswordField() {
