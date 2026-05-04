@@ -51,18 +51,34 @@ void CDialog::setPrompt(const std::string& text, bool echo) {
         m_promptText.pop_back();
     m_promptEcho = echo;
 
-    if (m_passwordField) {
+    if (m_passwordRow && m_passwordField) {
         m_currentPassword.clear();
-        m_passwordVisible = false;
-        // sentinel rebuild forces a text diff so updateLabel fires; gate stops onTextEdited churn
-        m_rebuildingField = true;
-        m_passwordField->rebuild()->placeholder(std::string{m_promptText})->defaultText(std::string{" "})->password(!echo)->commence();
-        m_passwordField->rebuild()->defaultText(std::string{""})->password(!echo)->commence();
-        m_rebuildingField = false;
+        m_passwordVisible = !echo;
+        m_passwordRow->removeChild(m_passwordField);
+        m_passwordRow->removeChild(m_revealButton);
+        buildPasswordField();
+        m_passwordRow->addChild(m_passwordField);
+        m_passwordRow->addChild(m_revealButton);
         if (m_revealButton)
             m_revealButton->rebuild()->label(std::string{"Show"})->commence();
         m_passwordField->focus();
     }
+}
+
+void CDialog::buildPasswordField() {
+    const auto& cfg = g_pConfigManager->get();
+    m_passwordField = CTextboxBuilder::begin()
+                          ->placeholder(std::string{m_promptText})
+                          ->password(!m_passwordVisible)
+                          ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
+                                  {(double)cfg.passwordFieldWidth, 34.0}})
+                          ->defaultText(std::string{m_currentPassword})
+                          ->onTextEdited([this](CSharedPointer<CTextboxElement>, const std::string& s) {
+                              m_currentPassword = s;
+                              if (!s.empty() && m_errShown)
+                                  setError("");
+                          })
+                          ->commence();
 }
 
 void CDialog::showStatus(CSharedPointer<IElement>& wrap, bool& shown, bool show) {
@@ -361,35 +377,25 @@ void CDialog::build() {
         auto pwRow = CRowLayoutBuilder::begin()->gap(4)->commence();
         pwRow->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
         pwRow->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
+        m_passwordRow = pwRow;
 
-        m_passwordField = CTextboxBuilder::begin()
-                              ->placeholder(std::string{m_promptText})
-                              ->password(true)
-                              ->size({CDynamicSize::HT_SIZE_ABSOLUTE, CDynamicSize::HT_SIZE_ABSOLUTE,
-                                      {(double)cfg.passwordFieldWidth, 34.0}})
-                              ->onTextEdited([this](CSharedPointer<CTextboxElement>, const std::string& s) {
-                                  if (m_rebuildingField)
-                                      return; // toggle of show/hide, not real input
-                                  m_currentPassword = s;
-                                  if (!s.empty() && m_errShown)
-                                      setError("");
-                              })
-                              ->commence();
+        buildPasswordField();
         pwRow->addChild(m_passwordField);
 
         m_revealButton = CButtonBuilder::begin()
                              ->label(std::string{"Show"})
                              ->noBorder(true)
                              ->onMainClick([this](CSharedPointer<CButtonElement>) {
+                                 // rebuild() can't flip password() on a live textbox, so swap
+                                 // the field for a fresh one initialised in the new mode
                                  m_passwordVisible = !m_passwordVisible;
-                                 // gate the sentinel rebuilds so they don't clobber m_currentPassword
-                                 const auto saved = m_currentPassword;
-                                 m_rebuildingField = true;
-                                 m_passwordField->rebuild()->defaultText(std::string{saved + " "})->password(!m_passwordVisible)->commence();
-                                 m_passwordField->rebuild()->defaultText(std::string{saved})->password(!m_passwordVisible)->commence();
-                                 m_rebuildingField = false;
-                                 m_currentPassword = saved;
+                                 m_passwordRow->removeChild(m_passwordField);
+                                 m_passwordRow->removeChild(m_revealButton);
+                                 buildPasswordField();
+                                 m_passwordRow->addChild(m_passwordField);
+                                 m_passwordRow->addChild(m_revealButton);
                                  m_revealButton->rebuild()->label(std::string{m_passwordVisible ? "Hide" : "Show"})->commence();
+                                 m_passwordField->focus();
                              })
                              ->commence();
         pwRow->addChild(m_revealButton);

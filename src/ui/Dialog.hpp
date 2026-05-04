@@ -30,6 +30,7 @@ class CDialog {
 
   private:
     void build();
+    void buildPasswordField();
     void showStatus(Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IElement>& wrap, bool& shown, bool show);
 
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IBackend>        m_backend;
@@ -48,6 +49,7 @@ class CDialog {
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IElement>        m_capsWrap;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IElement>        m_errWrap;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IElement>        m_infoWrap;
+    Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IElement>        m_passwordRow;
 
     Hyprutils::Signal::CHyprSignalListener m_closeListener;
     Hyprutils::Signal::CHyprSignalListener m_keyListener;
@@ -56,7 +58,6 @@ class CDialog {
     std::string                   m_currentPassword;
     bool                          m_promptEcho      = false;
     bool                          m_passwordVisible = false;
-    bool                          m_rebuildingField = false;
     bool                          m_detailsVisible  = false;
     bool                          m_capsLockOn      = false;
     bool                          m_capsShown       = false;
