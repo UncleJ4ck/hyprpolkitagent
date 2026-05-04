@@ -63,14 +63,28 @@ void CDialog::setPrompt(const std::string& text, bool echo) {
     }
 }
 
+void CDialog::showStatus(CSharedPointer<IElement>& wrap, bool& shown, bool show) {
+    if (!m_statusContainer || !wrap)
+        return;
+    if (show && !shown) {
+        m_statusContainer->addChild(wrap);
+        shown = true;
+    } else if (!show && shown) {
+        m_statusContainer->removeChild(wrap);
+        shown = false;
+    }
+}
+
 void CDialog::setInfo(const std::string& text) {
     if (m_infoLabel)
         m_infoLabel->rebuild()->text(std::string{text})->commence();
+    showStatus(m_infoWrap, m_infoShown, !text.empty());
 }
 
 void CDialog::setError(const std::string& text) {
     if (m_errorLabel)
         m_errorLabel->rebuild()->text(std::string{text})->commence();
+    showStatus(m_errWrap, m_errShown, !text.empty());
 }
 
 static std::string gtkIconTheme() {
@@ -173,8 +187,9 @@ void CDialog::build() {
         const bool caps = ev.modMask & Input::HT_MODIFIER_CAPS;
         if (caps != m_capsLockOn) {
             m_capsLockOn = caps;
-            if (m_capsLockLabel)
-                m_capsLockLabel->rebuild()->text(std::string{caps ? "Caps Lock is on" : ""})->commence();
+            if (m_capsLockLabel && caps)
+                m_capsLockLabel->rebuild()->text(std::string{"Caps Lock is on"})->commence();
+            showStatus(m_capsWrap, m_capsShown, caps);
         }
 
         if (!ev.down || ev.repeat)
@@ -351,8 +366,8 @@ void CDialog::build() {
                                   if (s == "\x01")
                                       return; // sentinel, not real user input
                                   m_currentPassword = s;
-                                  if (!s.empty() && m_errorLabel)
-                                      m_errorLabel->rebuild()->text(std::string{""})->commence();
+                                  if (!s.empty() && m_errShown)
+                                      setError("");
                               })
                               ->commence();
         pwRow->addChild(m_passwordField);
@@ -373,41 +388,40 @@ void CDialog::build() {
         outer->addChild(pwRow);
     }
 
-    // caps lock
+    // status rows live in a column added to the outer tree, but each wrap is only
+    // attached when its label has text, so empty labels reserve no space
     {
-        auto capsWrap = CRowLayoutBuilder::begin()->commence();
-        capsWrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
-        capsWrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
+        auto statusCol = CColumnLayoutBuilder::begin()->gap(4)->commence();
+        statusCol->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
+        statusCol->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
+        outer->addChild(statusCol);
+        m_statusContainer = statusCol;
+
+        auto makeWrap = [](CSharedPointer<CTextElement> label) {
+            auto w = CRowLayoutBuilder::begin()->commence();
+            w->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
+            w->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
+            w->addChild(label);
+            return w;
+        };
+
         m_capsLockLabel = CTextBuilder::begin()
                               ->text(std::string{""})
                               ->fontSize({CFontSize::HT_FONT_SMALL})
                               ->color([] { return CHyprColor{1.0F, 0.75F, 0.2F, 1.F}; })
                               ->commence();
-        capsWrap->addChild(m_capsLockLabel);
-        outer->addChild(capsWrap);
-    }
-
-    // error / info labels
-    {
-        auto errWrap = CRowLayoutBuilder::begin()->commence();
-        errWrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
-        errWrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
         m_errorLabel = CTextBuilder::begin()
                            ->text(std::string{""})
                            ->color([] { return CHyprColor{0.9F, 0.4F, 0.4F, 1.F}; })
                            ->commence();
-        errWrap->addChild(m_errorLabel);
-        outer->addChild(errWrap);
-
-        auto infoWrap = CRowLayoutBuilder::begin()->commence();
-        infoWrap->setPositionMode(IElement::HT_POSITION_ABSOLUTE);
-        infoWrap->setPositionFlag(IElement::HT_POSITION_FLAG_HCENTER, true);
         m_infoLabel = CTextBuilder::begin()
                           ->text(std::string{""})
                           ->color([] { return g_pAgent->backend()->getPalette()->m_colors.text.darken(0.4); })
                           ->commence();
-        infoWrap->addChild(m_infoLabel);
-        outer->addChild(infoWrap);
+
+        m_capsWrap = makeWrap(m_capsLockLabel);
+        m_errWrap  = makeWrap(m_errorLabel);
+        m_infoWrap = makeWrap(m_infoLabel);
     }
 
     // buttons

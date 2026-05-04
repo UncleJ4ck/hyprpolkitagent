@@ -30,6 +30,7 @@ class CDialog {
 
   private:
     void build();
+    void showStatus(Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IElement>& wrap, bool& shown, bool show);
 
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IBackend>        m_backend;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IWindow>         m_window;
@@ -43,6 +44,10 @@ class CDialog {
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CButtonElement>  m_detailsButton;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IElement>        m_detailsContainer;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IElement>        m_detailsParent;
+    Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IElement>        m_statusContainer;
+    Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IElement>        m_capsWrap;
+    Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IElement>        m_errWrap;
+    Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IElement>        m_infoWrap;
 
     Hyprutils::Signal::CHyprSignalListener m_closeListener;
     Hyprutils::Signal::CHyprSignalListener m_keyListener;
@@ -53,5 +58,8 @@ class CDialog {
     bool                          m_promptEcho      = false;
     bool                          m_detailsVisible  = false;
     bool                          m_capsLockOn      = false;
+    bool                          m_capsShown       = false;
+    bool                          m_errShown        = false;
+    bool                          m_infoShown       = false;
     std::string                   m_promptText      = "Password";
 };
