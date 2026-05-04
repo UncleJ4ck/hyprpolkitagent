@@ -39,6 +39,7 @@ class CDialog {
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CTextElement>    m_errorLabel;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CTextElement>    m_infoLabel;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CTextElement>    m_capsLockLabel;
+    Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CButtonElement>  m_revealButton;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CButtonElement>  m_authButton;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::CButtonElement>  m_detailsButton;
     Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IElement>        m_detailsContainer;
@@ -54,6 +55,8 @@ class CDialog {
     CPolkitListener::SAuthRequest m_req;
     std::string                   m_currentPassword;
     bool                          m_promptEcho      = false;
+    bool                          m_passwordVisible = false;
+    bool                          m_rebuildingField = false;
     bool                          m_detailsVisible  = false;
     bool                          m_capsLockOn      = false;
     bool                          m_capsShown       = false;

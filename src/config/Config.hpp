@@ -9,7 +9,7 @@ struct SHPAConfig {
     int   rounding          = 8;
     int   passwordFieldWidth = 340;
     int   windowWidth       = 520;
-    int   windowHeight      = 540;
+    int   windowHeight      = 480;
     bool  showIcon          = true;
     bool  showDetails       = true;
 };
