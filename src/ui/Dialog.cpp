@@ -160,7 +160,7 @@ void CDialog::build() {
 
     m_window = CWindowBuilder::begin()
                    ->preferredSize({cfg.windowWidth, cfg.windowHeight})
-                   ->minSize({480, 540})
+                   ->minSize({540, 540})
                    ->maxSize({700, 700})
                    ->appTitle("Authentication Required")
                    ->appClass("hyprpolkitagent")
