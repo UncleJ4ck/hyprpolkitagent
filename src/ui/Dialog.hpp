@@ -1,7 +1,6 @@
 #pragma once
 
 #include <hyprutils/memory/SharedPtr.hpp>
-#include <hyprutils/memory/WeakPtr.hpp>
 #include <hyprutils/signal/Signal.hpp>
 
 #include <hyprtoolkit/core/Backend.hpp>
