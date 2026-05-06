@@ -318,15 +318,6 @@ void CPolkitListener::selectIdentity(const std::string& identityString) {
     startSession();
 }
 
-std::string CPolkitListener::selectedIdentity() const {
-    if (!m_selectedUser)
-        return "";
-    gchar*      s   = polkit_identity_to_string(m_selectedUser);
-    std::string out = s ? s : "";
-    g_free(s);
-    return out;
-}
-
 void CPolkitListener::onRequestStatic(PolkitAgentSession*, gchar* request, gboolean echoOn, gpointer) {
     g_pAgent->onRequest(request ? request : "", echoOn);
 }

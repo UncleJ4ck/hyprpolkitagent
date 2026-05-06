@@ -11,7 +11,6 @@
 #include <string>
 #include <vector>
 
-// GObject subclass declaration. Defined in PolkitListener.cpp.
 G_BEGIN_DECLS
 
 #define HPA_TYPE_LISTENER (hpa_listener_get_type())
@@ -45,31 +44,18 @@ class CPolkitListener {
     CPolkitListener();
     ~CPolkitListener();
 
-    // Registers our agent with polkitd.
     bool registerAgent();
-
-    // Called by the GObject vtable on every initiate_authentication.
     void initiateAuth(SAuthRequest req);
-
-    // User submitted a password via the dialog.
     void submitResponse(const std::string& password);
-
-    // User cancelled (or session got cancelled externally).
     void cancelCurrent();
-
-    // Switch identity mid-flow. Cancels current PAM session and starts a new one.
     void selectIdentity(const std::string& identityString);
 
-    // The active session's selected user, "" if no session.
-    std::string selectedIdentity() const;
-
   private:
-    void startSession();      // creates PolkitAgentSession for the current request
+    void startSession();
     void completeCurrent(bool gainedAuth, bool cancelled);
     void teardownSession();
     void startNextQueued();
 
-    // PolkitAgentSession callbacks (static C trampolines + member impls).
     static void onRequestStatic(PolkitAgentSession* s, gchar* request, gboolean echoOn, gpointer self);
     static void onShowErrorStatic(PolkitAgentSession* s, gchar* text, gpointer self);
     static void onShowInfoStatic(PolkitAgentSession* s, gchar* text, gpointer self);
