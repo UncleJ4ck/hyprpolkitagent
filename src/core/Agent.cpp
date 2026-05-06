@@ -12,7 +12,8 @@ CAgent::CAgent()  = default;
 CAgent::~CAgent() = default;
 
 bool CAgent::start() {
-    g_pConfigManager = new CConfigManager();
+    static CConfigManager s_configManager;
+    g_pConfigManager = &s_configManager;
     g_pConfigManager->load();
 
     m_backend = IBackend::create();

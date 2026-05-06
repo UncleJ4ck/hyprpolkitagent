@@ -32,15 +32,12 @@ class CPolkitListener {
         std::string                iconName;
         std::string                cookie;
         std::vector<SIdentity>     identities;
-        // raw polkit identity list, kept alive for the session lifetime.
+        // raw polkit identity list, kept alive for the session lifetime
         GList*                     gIdentities = nullptr;
-        // pending GSimpleAsyncResult callback; resolved on completion.
+        // resolved on completion
         GTask*                     task        = nullptr;
-        // command_line / cmdline / etc. detail value (already stripped from extras).
         std::string                command;
-        // remaining details for the disclosure section.
         std::vector<std::pair<std::string, std::string>> details;
-        // vendor / vendor_url polkit annotations.
         std::string                vendor;
         std::string                vendorUrl;
     };
