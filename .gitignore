@@ -34,6 +34,8 @@
 # Editor / tool caches
 .vscode/
 .cache/
+.claude/
+DESIGN.md
 compile_commands.json
 
 # Build output

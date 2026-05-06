@@ -1,5 +1,5 @@
 # hyprpolkitagent
-A simple polkit authentication agent for Hyprland, written in QT/QML.
+A simple polkit authentication agent for Hyprland, written in C++ with [hyprtoolkit](https://github.com/hyprwm/hyprtoolkit).
 
 ![](./assets/polkit.png)
 
@@ -8,8 +8,8 @@ A simple polkit authentication agent for Hyprland, written in QT/QML.
 ### Core UX / flow
 - [x] Uses PAM request text for the prompt (not always "Password")
 - [x] Surfaces PAM info/error messages in the UI
-- [x] Disables Authenticate until input is present; resets input on failure
-- [x] Retry UX (clears field, refocuses, shows visible error)
+- [x] Dims Authenticate until input is present
+- [x] Retry on auth failure (restarts PAM session, shows error)
 - [x] Password visibility toggle (show/hide)
 - [x] Caps Lock warning on the password field
 
@@ -19,18 +19,12 @@ A simple polkit authentication agent for Hyprland, written in QT/QML.
 
 ### Robustness
 - [x] Queues concurrent requests instead of rejecting them
-- [x] Consistent cleanup on cancel (cancels running PAM session, distinguishes paths)
+- [x] Consistent cleanup on cancel (cancels running PAM session)
 - [x] Refuses to prompt while the session is locked (logind `LockedHint`)
 
-### Security / privacy
-- [x] Zeroizes password buffer after submission
-
-### Transparency / polish
+### Transparency
 - [x] Expandable "Details" section (action id, vendor, vendor URL, extras)
-- [x] Surfaces "Remember authorization" notice when policy supports it
-- [x] Action/app icon support (uses `iconName`/details, falls back to system theme)
-- [x] User avatar display (via AccountsService)
-- [x] User-visible strings wrapped for translation (`qsTr` / `tr`)
+- [x] Action/app icon support (uses `iconName`, falls back to system theme)
 
 ### Window placement
 Window positioning under Wayland (xdg-shell) is decided by the compositor, so
