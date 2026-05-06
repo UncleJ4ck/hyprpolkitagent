@@ -277,10 +277,11 @@ void CDialog::build() {
             // inject the bg into the svg so the icon stays a single image element
             if (bytes[0] == '<') {
                 const std::string rct = "<rect width=\"100%\" height=\"100%\" rx=\"4\" ry=\"4\" fill=\"#33ccff\"/>";
-                std::string svg(bytes.begin(), bytes.end());
-                const auto svgEnd = svg.find('>');
-                if (svgEnd != std::string::npos)
-                    svg.insert(svgEnd + 1, rct);
+                std::string       svg(bytes.begin(), bytes.end());
+                const auto        tag = svg.find("<svg");
+                const auto        end = tag != std::string::npos ? svg.find('>', tag) : std::string::npos;
+                if (end != std::string::npos)
+                    svg.insert(end + 1, rct);
                 bytes.assign(svg.begin(), svg.end());
             }
 
