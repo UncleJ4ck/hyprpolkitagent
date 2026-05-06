@@ -205,8 +205,6 @@ void CPolkitListener::initiateAuth(SAuthRequest req) {
     m_selectedUser = static_cast<PolkitIdentity*>(g_object_ref(g_list_nth_data(m_current.gIdentities, idx)));
 
     m_inProgress = true;
-    m_gainedAuth = false;
-    m_cancelled  = false;
 
     g_pAgent->beginAuth(m_current);
 
@@ -245,8 +243,6 @@ void CPolkitListener::completeCurrent(bool gainedAuth, bool cancelled) {
     std::print(stderr, "> auth {}\n", gainedAuth ? "succeeded" : "cancelled");
 
     m_inProgress = false;
-    m_gainedAuth = gainedAuth;
-    m_cancelled  = cancelled;
 
     teardownSession();
 
@@ -285,7 +281,6 @@ void CPolkitListener::submitResponse(const std::string& password) {
 void CPolkitListener::cancelCurrent() {
     if (!m_inProgress)
         return;
-    m_cancelled = true;
     if (m_session) {
         g_signal_handlers_disconnect_by_data(m_session, this);
         polkit_agent_session_cancel(m_session);

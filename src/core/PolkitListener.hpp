@@ -83,8 +83,6 @@ class CPolkitListener {
 
     SAuthRequest       m_current;
     bool               m_inProgress      = false;
-    bool               m_gainedAuth      = false;
-    bool               m_cancelled       = false;
     PolkitIdentity*    m_selectedUser    = nullptr;
 
     std::deque<SAuthRequest> m_queue;
