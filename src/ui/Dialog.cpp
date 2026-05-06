@@ -142,8 +142,12 @@ static std::string gtkIconTheme() {
     std::ifstream f(cfg + "/gtk-3.0/settings.ini");
     for (std::string line; std::getline(f, line);) {
         auto eq = line.find('=');
-        if (line.find("gtk-icon-theme-name") != std::string::npos && eq != std::string::npos)
-            return line.substr(eq + 1);
+        if (line.find("gtk-icon-theme-name") != std::string::npos && eq != std::string::npos) {
+            std::string val = line.substr(eq + 1);
+            const auto  s   = val.find_first_not_of(" \t\r");
+            const auto  e   = val.find_last_not_of(" \t\r\n");
+            return s == std::string::npos ? "" : val.substr(s, e - s + 1);
+        }
     }
     return {};
 }

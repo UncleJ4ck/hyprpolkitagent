@@ -18,7 +18,6 @@ class CConfigManager {
   public:
     CConfigManager();
 
-    // Loads/reloads from disk. Safe to call before entering the event loop.
     void load();
 
     const SHPAConfig& get() const { return m_cfg; }
