@@ -48,10 +48,14 @@ void CDialog::close() {
 
 void CDialog::setPrompt(const std::string& text, bool echo) {
     std::string newPrompt = text;
-    if (newPrompt.empty())
-        newPrompt = "Password";
+    while (!newPrompt.empty() && (newPrompt.back() == ' ' || newPrompt.back() == '\t'))
+        newPrompt.pop_back();
     if (!newPrompt.empty() && newPrompt.back() == ':')
         newPrompt.pop_back();
+    while (!newPrompt.empty() && (newPrompt.back() == ' ' || newPrompt.back() == '\t'))
+        newPrompt.pop_back();
+    if (newPrompt.empty())
+        newPrompt = "Password";
 
     // initial prompt arrives after build() and would clobber the first keystroke
     const bool clean = m_currentPassword.empty() && !m_passwordVisible
