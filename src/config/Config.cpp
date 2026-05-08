@@ -3,6 +3,7 @@
 #include <hyprlang.hpp>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <print>
 
 static std::string configPath() {
@@ -18,18 +19,17 @@ void CConfigManager::load() {
 
     if (!fs::exists(m_path)) {
         fs::create_directories(fs::path{m_path}.parent_path());
-        if (FILE* f = fopen(m_path.c_str(), "w")) {
-            fputs("general {\n"
-                  "    border_size          = 1\n"
-                  "    rounding             = 8\n"
-                  "    password_field_width = 340\n"
-                  "    window_width         = 520\n"
-                  "    window_height        = 440\n"
-                  "    show_details         = true\n"
-                  "}\n",
-                  f);
-            fclose(f);
-        }
+        std::ofstream ofs;
+        ofs.open(m_path, std::ios::trunc);
+        if (ofs.good())
+            ofs << "general {\n"
+                   "    border_size          = 1\n"
+                   "    rounding             = 8\n"
+                   "    password_field_width = 340\n"
+                   "    window_width         = 520\n"
+                   "    window_height        = 440\n"
+                   "    show_details         = true\n"
+                   "}\n";
     }
 
     // Named variable so member initializers run (brace {} would zero __internal_struct_end).
