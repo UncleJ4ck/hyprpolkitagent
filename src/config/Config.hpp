@@ -4,13 +4,11 @@
 
 struct SHPAConfig {
     // general {}
-    int   iconSize          = 48;
     int   borderSize        = 1;
     int   rounding          = 8;
     int   passwordFieldWidth = 340;
     int   windowWidth       = 520;
     int   windowHeight      = 440;
-    bool  showIcon          = true;
     bool  showDetails       = true;
 };
 
