@@ -12,6 +12,7 @@
   sdbus-cpp,
   polkit,
   glib,
+  systemd,
   version ? "0",
 }:
 let
@@ -47,6 +48,7 @@ stdenv.mkDerivation {
     sdbus-cpp
     polkit
     glib
+    systemd
   ];
 
   meta = {
