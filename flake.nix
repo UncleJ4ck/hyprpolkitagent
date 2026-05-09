@@ -33,7 +33,7 @@
     };
 
     hyprtoolkit = {
-      url = "github:hyprwm/hyprtoolkit";
+      url = "github:UncleJ4ck/hyprtoolkit/feat-eye-icon";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.systems.follows = "systems";
       inputs.hyprutils.follows = "hyprutils";
