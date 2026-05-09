@@ -14,6 +14,8 @@
   polkit,
   glib,
   systemd,
+  cairo,
+  pango,
   version ? "0",
 }:
 let
@@ -51,6 +53,8 @@ stdenv.mkDerivation {
     polkit
     glib
     systemd
+    cairo
+    pango
   ];
 
   meta = {
