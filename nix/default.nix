@@ -9,7 +9,7 @@
   hyprlang,
   pixman,
   libdrm,
-  sdbus-cpp_2,
+  sdbus-cpp,
   polkit,
   glib,
   version ? "0",
@@ -44,7 +44,7 @@ stdenv.mkDerivation {
     hyprlang
     pixman
     libdrm
-    sdbus-cpp_2
+    sdbus-cpp
     polkit
     glib
   ];
