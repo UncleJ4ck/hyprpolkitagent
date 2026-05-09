@@ -16,6 +16,7 @@
   systemd,
   cairo,
   pango,
+  libxkbcommon,
   version ? "0",
 }:
 let
@@ -55,6 +56,7 @@ stdenv.mkDerivation {
     systemd
     cairo
     pango
+    libxkbcommon
   ];
 
   meta = {
