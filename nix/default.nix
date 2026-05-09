@@ -7,6 +7,7 @@
   hyprtoolkit,
   hyprgraphics,
   hyprlang,
+  aquamarine,
   pixman,
   libdrm,
   sdbus-cpp_2,
@@ -43,6 +44,7 @@ stdenv.mkDerivation {
     hyprtoolkit
     hyprgraphics
     hyprlang
+    aquamarine
     pixman
     libdrm
     sdbus-cpp_2

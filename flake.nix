@@ -25,6 +25,13 @@
       inputs.hyprutils.follows = "hyprutils";
     };
 
+    aquamarine = {
+      url = "github:hyprwm/aquamarine";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.systems.follows = "systems";
+      inputs.hyprutils.follows = "hyprutils";
+    };
+
     hyprtoolkit = {
       url = "github:hyprwm/hyprtoolkit";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -32,6 +39,7 @@
       inputs.hyprutils.follows = "hyprutils";
       inputs.hyprlang.follows = "hyprlang";
       inputs.hyprgraphics.follows = "hyprgraphics";
+      inputs.aquamarine.follows = "aquamarine";
     };
   };
 

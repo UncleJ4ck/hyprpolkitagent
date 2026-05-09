@@ -21,6 +21,7 @@ in
     inputs.hyprutils.overlays.default
     inputs.hyprlang.overlays.default
     inputs.hyprgraphics.overlays.default
+    inputs.aquamarine.overlays.default
     inputs.hyprtoolkit.overlays.default
     self.overlays.hyprpolkitagent
   ];
