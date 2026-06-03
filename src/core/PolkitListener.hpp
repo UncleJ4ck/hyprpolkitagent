@@ -1,47 +1,98 @@
 #pragma once
 
-#include <QObject>
-#include <QString>
+#include <sdbus-c++/sdbus-c++.h>
 
-#include <polkitqt1-agent-listener.h>
-#include <polkitqt1-identity.h>
-#include <polkitqt1-details.h>
-#include <polkitqt1-agent-session.h>
+#include <hyprutils/memory/SharedPtr.hpp>
 
-class CPolkitListener : public PolkitQt1::Agent::Listener {
-    Q_OBJECT;
-    Q_DISABLE_COPY(CPolkitListener);
+#include <hyprtoolkit/core/Backend.hpp>
 
+#include <deque>
+#include <memory>
+#include <string>
+#include <vector>
+
+class CPolkitListener {
   public:
-    CPolkitListener(QObject* parent = nullptr);
-    ~CPolkitListener() override {};
+    struct SIdentity {
+        std::string raw;     // e.g. "unix-user:1000"
+        std::string display; // "alice" or "1000"
+        uint32_t    uid = (uint32_t)-1;
+    };
 
-    void submitPassword(const QString& pass);
-    void cancelPending();
+    struct SAuthRequest {
+        std::string                                      actionId;
+        std::string                                      message;
+        std::string                                      iconName;
+        std::string                                      cookie;
+        std::vector<SIdentity>                           identities;
+        std::string                                      command;
+        std::vector<std::pair<std::string, std::string>> details;
+        std::string                                      vendor;
+        std::string                                      vendorUrl;
+    };
 
-  public Q_SLOTS:
-    void initiateAuthentication(const QString& actionId, const QString& message, const QString& iconName, const PolkitQt1::Details& details, const QString& cookie,
-                                const PolkitQt1::Identity::List& identities, PolkitQt1::Agent::AsyncResult* result) override;
-    bool initiateAuthenticationFinish() override;
-    void cancelAuthentication() override;
+    CPolkitListener();
+    ~CPolkitListener();
 
-    void request(const QString& request, bool echo);
-    void completed(bool gainedAuthorization);
-    void showError(const QString& text);
-    void showInfo(const QString& text);
+    bool registerAgent(Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IBackend> backend);
+
+    void submitResponse(const std::string& password);
+    void cancelCurrent();
+    void selectIdentity(const std::string& identityString);
 
   private:
-    struct {
-        bool                           inProgress = false, cancelled = false, gainedAuth = false;
-        QString                        cookie, message, iconName, actionId;
-        PolkitQt1::Agent::AsyncResult* result = nullptr;
-        PolkitQt1::Identity            selectedUser;
-        PolkitQt1::Agent::Session*     session = nullptr;
-    } session;
+    enum eHelperMode {
+        HELPER_NONE,
+        HELPER_SOCKET,
+        HELPER_FORK,
+    };
 
-    void reattempt();
-    void finishAuth();
+    struct SHelperProc {
+        eHelperMode mode      = HELPER_NONE;
+        pid_t       pid       = -1;
+        int         stdinFd   = -1;
+        int         stdoutFd  = -1;
+        bool        gotPrompt = false;
+        bool        triedFork = false;
+        std::string buffer;
+    };
 
-    friend class CAgent;
-    friend class CQMLIntegration;
+    struct SActiveAuth {
+        SAuthRequest                     req;
+        std::unique_ptr<sdbus::Result<>> reply;
+        int                              selectedIdx = 0;
+        SHelperProc                      helper;
+    };
+
+    void        onBeginAuthentication(sdbus::Result<>&& result, std::string actionId, std::string message, std::string iconName, std::map<std::string, std::string> details,
+                                      std::string cookie, std::vector<sdbus::Struct<std::string, std::map<std::string, sdbus::Variant>>> identities);
+    void        onCancelAuthentication(std::string cookie);
+
+    void        startHelper(SActiveAuth& a);
+    bool        tryHelperSocket(SActiveAuth& a);
+    bool        tryHelperFork(SActiveAuth& a);
+    void        killHelper(SHelperProc& h);
+    void        onHelperReadable();
+    void        handleLine(SActiveAuth& a, const std::string& line);
+    void        completeAuth(bool succeeded, bool cancelled);
+    void        startNextQueued();
+    void        rejectActive(const std::string& msg);
+
+    void        pumpBus();
+    bool        isSessionLocked();
+    std::string getOwnSessionId();
+    std::string identityToString(const sdbus::Struct<std::string, std::map<std::string, sdbus::Variant>>& id) const;
+
+    Hyprutils::Memory::CSharedPointer<Hyprtoolkit::IBackend> m_backend;
+
+    std::unique_ptr<sdbus::IConnection>                      m_conn;
+    std::unique_ptr<sdbus::IObject>                          m_agentObject;
+    std::string                                              m_objectPath = "/org/hyprland/PolicyKit1/AuthenticationAgent";
+    std::string                                              m_sessionId;
+
+    int                                                      m_watchedFd      = -1;
+    int                                                      m_watchedEventFd = -1;
+
+    std::unique_ptr<SActiveAuth>                             m_current;
+    std::deque<std::unique_ptr<SActiveAuth>>                 m_queue;
 };

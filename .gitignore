@@ -1,17 +1,17 @@
 # Prerequisites
 *.d
 
-# Compiled Object files
+# Compiled object files
 *.slo
 *.lo
 *.o
 *.obj
 
-# Precompiled Headers
+# Precompiled headers
 *.gch
 *.pch
 
-# Compiled Dynamic libraries
+# Compiled dynamic libraries
 *.so
 *.dylib
 *.dll
@@ -20,7 +20,7 @@
 *.mod
 *.smod
 
-# Compiled Static libraries
+# Compiled static libraries
 *.lai
 *.la
 *.a
@@ -31,8 +31,34 @@
 *.out
 *.app
 
+# Editor / tool caches
 .vscode/
 .cache/
+.claude/
+DESIGN.md
+compile_commands.json
+
+# Build output
 build/
 
-compile_commands.json
+# CMake generated (in-source build artifacts)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Qt generated (in-source build artifacts)
+.qt/
+.rcc/
+hpa/
+hyprpolkitagent_autogen/
+meta_types/
+qmltypes/
+
+# Built binaries / generated sources
+hyprpolkitagent
+hyprpolkitagent_qmltyperegistrations.cpp
+
+# Generated unit/service files (from build/install)
+hyprpolkitagent.service
+hyprpolkitagent-dbus.service

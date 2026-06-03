@@ -1,90 +1,68 @@
-#define POLKIT_AGENT_I_KNOW_API_IS_SUBJECT_TO_CHANGE 1
-
-#include <polkitagent/polkitagent.h>
-#include <print>
-#include <QtCore/QString>
-using namespace Qt::Literals::StringLiterals;
-
 #include "Agent.hpp"
-#include "../QMLIntegration.hpp"
+#include "../ui/Dialog.hpp"
+#include "../config/Config.hpp"
 
-CAgent::CAgent() {
-    ;
-}
+#include <print>
 
-CAgent::~CAgent() {
-    ;
-}
+using namespace Hyprutils::Memory;
+using namespace Hyprtoolkit;
+
+CAgent::CAgent()  = default;
+CAgent::~CAgent() = default;
 
 bool CAgent::start() {
-    sessionSubject = makeShared<PolkitQt1::UnixSessionSubject>(getpid());
+    static CConfigManager s_configManager;
+    g_pConfigManager = &s_configManager;
+    g_pConfigManager->load();
 
-    listener.registerListener(*sessionSubject, "/org/hyprland/PolicyKit1/AuthenticationAgent");
+    m_backend = IBackend::create();
+    if (!m_backend) {
+        std::print(stderr, "failed to create hyprtoolkit backend\n");
+        return false;
+    }
 
-    int          argc = 1;
-    char*        argv = (char*)"hyprpolkitagent";
-    QApplication app(argc, &argv);
+    if (!m_listener.registerAgent(m_backend))
+        return false;
 
-    app.setApplicationName("Hyprland Polkit Agent");
-    QGuiApplication::setQuitOnLastWindowClosed(false);
-
-    app.exec();
-
+    m_backend->enterLoop();
     return true;
 }
 
-void CAgent::resetAuthState() {
-    if (authState.authing) {
-        authState.authing = false;
+void CAgent::beginAuth(CPolkitListener::SAuthRequest req) {
+    m_dialog = CUniquePointer<CDialog>(new CDialog(req, m_backend));
+    m_dialog->show();
+}
 
-        if (authState.qmlEngine)
-            authState.qmlEngine->deleteLater();
-        if (authState.qmlIntegration)
-            authState.qmlIntegration->deleteLater();
-
-        authState.qmlEngine      = nullptr;
-        authState.qmlIntegration = nullptr;
+void CAgent::endAuth() {
+    if (m_dialog) {
+        m_dialog->close();
+        m_dialog.reset();
     }
 }
 
-void CAgent::initAuthPrompt() {
-    resetAuthState();
-
-    if (!listener.session.inProgress) {
-        std::print(stderr, "INTERNAL ERROR: Spawning qml prompt but session isn't in progress\n");
-        return;
-    }
-
-    std::print("Spawning qml prompt\n");
-
-    authState.authing = true;
-
-    authState.qmlIntegration = new CQMLIntegration();
-
-    if (qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE"))
-        QQuickStyle::setStyle("org.hyprland.style");
-
-    authState.qmlEngine = new QQmlApplicationEngine();
-    authState.qmlEngine->rootContext()->setContextProperty("hpa", authState.qmlIntegration);
-    authState.qmlEngine->load(QUrl{u"qrc:/qt/qml/hpa/qml/main.qml"_s});
-
-    authState.qmlIntegration->focusField();
+void CAgent::onRequest(const std::string& prompt, bool echo) {
+    if (m_dialog)
+        m_dialog->setPrompt(prompt, echo);
 }
 
-bool CAgent::resultReady() {
-    return !lastAuthResult.used;
+void CAgent::onInfo(const std::string& text) {
+    if (m_dialog)
+        m_dialog->setInfo(text);
 }
 
-void CAgent::submitResultThreadSafe(const std::string& result) {
-    lastAuthResult.used   = false;
-    lastAuthResult.result = result;
+void CAgent::onError(const std::string& text) {
+    if (m_dialog)
+        m_dialog->setError(text);
+}
 
-    const bool PASS = result.starts_with("auth:");
+void CAgent::submitPassword(const std::string& password) {
+    m_listener.submitResponse(password);
+}
 
-    std::print("Got result from qml: {}\n", PASS ? "auth:**PASSWORD**" : result);
+void CAgent::cancel() {
+    m_listener.cancelCurrent();
+}
 
-    if (PASS)
-        listener.submitPassword(result.substr(result.find(":") + 1).c_str());
-    else
-        listener.cancelPending();
+void CAgent::selectIdentity(const std::string& s) {
+    m_listener.selectIdentity(s);
 }

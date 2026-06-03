@@ -1,5 +1,5 @@
 {
-  description = "A polkit authentication agent written in QT/QML";
+  description = "A polkit authentication agent built with hyprtoolkit";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -11,10 +11,35 @@
       inputs.systems.follows = "systems";
     };
 
-    hyprland-qt-support = {
-      url = "github:hyprwm/hyprland-qt-support";
+    hyprlang = {
+      url = "github:hyprwm/hyprlang";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.systems.follows = "systems";
+      inputs.hyprutils.follows = "hyprutils";
+    };
+
+    hyprgraphics = {
+      url = "github:hyprwm/hyprgraphics";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.systems.follows = "systems";
+      inputs.hyprutils.follows = "hyprutils";
+    };
+
+    aquamarine = {
+      url = "github:hyprwm/aquamarine";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.systems.follows = "systems";
+      inputs.hyprutils.follows = "hyprutils";
+    };
+
+    hyprtoolkit = {
+      url = "github:hyprwm/hyprtoolkit";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.systems.follows = "systems";
+      inputs.hyprutils.follows = "hyprutils";
+      inputs.hyprlang.follows = "hyprlang";
+      inputs.hyprgraphics.follows = "hyprgraphics";
+      inputs.aquamarine.follows = "aquamarine";
     };
   };
 
