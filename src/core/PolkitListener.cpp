@@ -96,7 +96,9 @@ bool CPolkitListener::registerAgent(Hyprutils::Memory::CSharedPointer<Hyprtoolki
 
     m_sessionId = getOwnSessionId();
     if (m_sessionId.empty()) {
-        std::print(stderr, "could not resolve our logind session id\n");
+        std::print(stderr,
+                   "could not resolve our logind session id (no XDG_SESSION_ID env, no session for pid, no active User.Display). "
+                   "Is there an active graphical session for this user?\n");
         return false;
     }
 
@@ -156,8 +158,11 @@ void CPolkitListener::pumpBus() {
 }
 
 std::string CPolkitListener::getOwnSessionId() {
+    // 1) env var, fast path. pam_systemd sets it, but the user manager may not import it.
     if (const char* env = getenv("XDG_SESSION_ID"); env && *env)
         return env;
+
+    // 2) our pid's session, via cgroup. only works if we're in a session.scope.
     try {
         auto              proxy = sdbus::createProxy(*m_conn, sdbus::ServiceName{LOGIND_BUS}, sdbus::ObjectPath{LOGIND_MGR_OBJ});
         sdbus::ObjectPath path;
@@ -167,10 +172,25 @@ std::string CPolkitListener::getOwnSessionId() {
         sdbus::Variant v;
         sproxy->callMethod("Get").onInterface("org.freedesktop.DBus.Properties").withArguments(std::string{LOGIND_SESSION}, std::string{"Id"}).storeResultsTo(v);
         return v.get<std::string>();
+    } catch (const sdbus::Error&) {}
+
+    // 3) user's active display session, via logind User.Display. survives user@.service cgroup.
+    try {
+        auto              mgr = sdbus::createProxy(*m_conn, sdbus::ServiceName{LOGIND_BUS}, sdbus::ObjectPath{LOGIND_MGR_OBJ});
+        sdbus::ObjectPath userPath;
+        mgr->callMethod("GetUser").onInterface(LOGIND_MGR_IFACE).withArguments((uint32_t)getuid()).storeResultsTo(userPath);
+
+        auto           user = sdbus::createProxy(*m_conn, sdbus::ServiceName{LOGIND_BUS}, userPath);
+        sdbus::Variant v;
+        user->callMethod("Get").onInterface("org.freedesktop.DBus.Properties").withArguments(std::string{"org.freedesktop.login1.User"}, std::string{"Display"}).storeResultsTo(v);
+        const auto disp = v.get<sdbus::Struct<std::string, sdbus::ObjectPath>>();
+        if (!disp.get<0>().empty())
+            return disp.get<0>();
     } catch (const sdbus::Error& e) {
         std::print(stderr, "logind session lookup failed: {}\n", e.what());
-        return {};
     }
+
+    return {};
 }
 
 bool CPolkitListener::isSessionLocked() {
